@@ -1,0 +1,1 @@
+RC1:基于M3,为legend模块引入EasyOCR，合并axies_reunion.py和axies_API.py,优化legend标签的识别方案，是上传git的最初版本
