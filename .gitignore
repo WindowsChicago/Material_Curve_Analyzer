@@ -1,0 +1,14 @@
+.vscode
+.idea
+.DS_Store
+*/.idea
+*/.vscode
+*/.DS_Store
+logs
+*build*
+*dist*
+__pycache__/
+*.pyc
+*.xls
+*.xlsx
+temp_crops/
