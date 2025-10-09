@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-plt.rc("font", family='Microsoft YaHei')
+#plt.rc("font", family='Microsoft YaHei')
 from scipy import signal
 import easyocr
 import re
@@ -10,7 +10,7 @@ import io
 import os
 
 # 初始化EasyOCR阅读器（支持英文和中文）
-reader = easyocr.Reader(['ch_sim', 'en'])
+reader = easyocr.Reader(['ch_sim', 'en'],gpu=True)
 
 def read_image_with_pil(image_path):
     """

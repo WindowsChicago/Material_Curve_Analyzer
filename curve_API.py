@@ -340,13 +340,13 @@ def analyze_image(image_path: str,
 # 使用示例和测试
 if __name__ == "__main__":
     # 示例用法
-    image_path = "2.jpg"  # 替换为您的图像路径
+    image_path = "1.jpg"  # 替换为您的图像路径
     
     try:
-        # 方法1: 使用便捷函数
-        print("方法1: 使用便捷函数")
-        result = analyze_image(image_path, visualize=True)
-        print(f"分析完成，找到 {result['total_legends']} 个图例")
+        # # 方法1: 使用便捷函数
+        # print("方法1: 使用便捷函数")
+        # result = analyze_image(image_path, visualize=True)
+        # print(f"分析完成，找到 {result['total_legends']} 个图例")
         
         # 方法2: 使用API类
         print("\n方法2: 使用API类")
@@ -354,7 +354,7 @@ if __name__ == "__main__":
         result = api.analyze_image(image_path)
         
         # 保存结果
-        api.save_results("analysis_result.json", "json")
+        # api.save_results("analysis_result.json", "json")
         api.save_results("analysis_result.txt", "txt")
         
         # 获取特定图例的点

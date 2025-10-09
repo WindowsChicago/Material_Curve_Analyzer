@@ -12,3 +12,7 @@ __pycache__/
 *.xls
 *.xlsx
 temp_crops/
+figs/
+*.jpg
+*.png
+*.tif

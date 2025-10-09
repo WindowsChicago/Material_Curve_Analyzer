@@ -379,7 +379,7 @@ from typing import List, Tuple
 from collections import Counter
 
 class OCRLegendTextExtractor:
-    def __init__(self, languages=['ch_sim', 'en'], gpu=False):
+    def __init__(self, languages=['ch_sim', 'en'], gpu=True):
         """
         初始化EasyOCR识别器
         languages: 支持的语言列表
