@@ -12,7 +12,7 @@ import os
 # 初始化EasyOCR阅读器（支持英文和中文）
 reader = easyocr.Reader(['ch_sim', 'en'],gpu=True)
 
-def read_image_with_pil(image_path):
+def read_image_pil(image_path):
     """
     使用PIL读取图像，解决OpenCV无法处理LZW压缩的问题
     
@@ -71,7 +71,7 @@ def merge_close_ticks(ticks, min_distance=5):
     
     return merged_ticks
 
-def filter_and_merge_texts(texts, confidence_threshold=0.5, y_threshold=10):
+def filter_merge_texts(texts, confidence_threshold=0.5, y_threshold=10):
     """
     过滤置信度较低的文本，并按行合并文本
     
@@ -192,7 +192,7 @@ def extract_x_axis_title(merged_texts):
     
     return None, merged_texts
 
-def extract_x_axis_coordinates_bidirectional(image_path):
+def extract_x_coord_bidirectional(image_path):
     """
     提取X轴边缘横坐标和长刻度横坐标，支持双向刻度检测
     
@@ -206,7 +206,7 @@ def extract_x_axis_coordinates_bidirectional(image_path):
     """
     
     # 使用PIL读取图像
-    img = read_image_with_pil(image_path)
+    img = read_image_pil(image_path)
     if img is None:
         raise ValueError("无法读取图像文件")
     
@@ -379,7 +379,248 @@ def extract_x_axis_coordinates_bidirectional(image_path):
     
     return left_edge, right_edge, filtered_long_ticks, above_tick_candidates, below_tick_candidates
 
-def extract_text_and_numbers_from_x_axis_region(image_path):
+# def extract_text_and_numbers_from_x_axis_region(image_path):
+#     """
+#     使用EasyOCR识别X轴区域（下四分之一）的文本和数字
+    
+#     参数:
+#         image_path: 图像文件路径
+        
+#     返回:
+#         numbers: 数字列表，每个元素为字典，包含'value'和'position'
+#         texts: 文本列表，每个元素为字典，包含'content'和'position'
+#     """
+#     # 使用PIL读取图像
+#     img = read_image_with_pil(image_path)
+#     if img is None:
+#         raise ValueError("无法读取图像文件")
+    
+#     # 获取图像尺寸
+#     height, width = img.shape[:2]
+    
+#     # 提取下四分之一区域作为OCR识别区域
+#     roi_height = height // 4
+#     roi_start = height - roi_height
+#     roi_region = img[roi_start:height, 0:width]
+    
+#     # 将ROI区域保存为临时文件
+#     temp_path = "temp_ocr_roi.png"
+#     cv2.imwrite(temp_path, roi_region)
+    
+#     try:
+#         # 使用EasyOCR识别ROI区域的文本
+#         results = reader.readtext(temp_path)
+#     finally:
+#         # 删除临时文件
+#         if os.path.exists(temp_path):
+#             os.remove(temp_path)
+    
+#     numbers = []
+#     texts = []
+    
+#     # 正则表达式匹配数字（包括整数、小数、负数、科学计数法）
+#     number_pattern = r'^[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?$'
+    
+#     for result in results:
+#         # result格式: (bbox, text, confidence)
+#         bbox, text, confidence = result
+        
+#         # 清理文本，去除空格和特殊字符
+#         cleaned_text = text.strip()
+        
+#         # 尝试将文本转换为数字
+#         try:
+#             # 检查是否是纯数字格式
+#             if re.match(number_pattern, cleaned_text):
+#                 value = float(cleaned_text)
+                
+#                 # 计算边界框的中心位置（相对于ROI区域）
+#                 x_coords = [point[0] for point in bbox]
+#                 y_coords = [point[1] for point in bbox]
+#                 center_x = sum(x_coords) / len(x_coords)
+#                 center_y = sum(y_coords) / len(y_coords)
+                
+#                 # 将坐标转换回原图坐标系
+#                 # x坐标不变，y坐标需要加上ROI的起始位置
+#                 center_x_full = center_x
+#                 center_y_full = center_y + roi_start
+                
+#                 # 同时转换整个边界框的坐标
+#                 bbox_full = [(point[0], point[1] + roi_start) for point in bbox]
+                
+#                 numbers.append({
+#                     'value': value,
+#                     'position': (center_x_full, center_y_full),
+#                     'bbox': bbox_full,  # 完整边界框（相对于全图）
+#                     'confidence': confidence
+#                 })
+#             else:
+#                 # 如果不是数字，作为文本处理
+#                 x_coords = [point[0] for point in bbox]
+#                 y_coords = [point[1] for point in bbox]
+#                 center_x = sum(x_coords) / len(x_coords)
+#                 center_y = sum(y_coords) / len(y_coords)
+                
+#                 # 将坐标转换回原图坐标系
+#                 center_x_full = center_x
+#                 center_y_full = center_y + roi_start
+                
+#                 # 同时转换整个边界框的坐标
+#                 bbox_full = [(point[0], point[1] + roi_start) for point in bbox]
+                
+#                 texts.append({
+#                     'content': cleaned_text,
+#                     'position': (center_x_full, center_y_full),
+#                     'bbox': bbox_full,  # 完整边界框（相对于全图）
+#                     'confidence': confidence
+#                 })
+#         except (ValueError, TypeError):
+#             # 转换失败，作为文本处理
+#             x_coords = [point[0] for point in bbox]
+#             y_coords = [point[1] for point in bbox]
+#             center_x = sum(x_coords) / len(x_coords)
+#             center_y = sum(y_coords) / len(y_coords)
+            
+#             # 将坐标转换回原图坐标系
+#             center_x_full = center_x
+#             center_y_full = center_y + roi_start
+            
+#             # 同时转换整个边界框的坐标
+#             bbox_full = [(point[0], point[1] + roi_start) for point in bbox]
+            
+#             texts.append({
+#                 'content': cleaned_text,
+#                 'position': (center_x_full, center_y_full),
+#                 'bbox': bbox_full,  # 完整边界框（相对于全图）
+#                 'confidence': confidence
+#             })
+    
+#     return numbers, texts
+# def extract_text_num_x_axis_region(image_path):
+#     """
+#     使用EasyOCR识别X轴区域（下四分之一）的文本和数字
+    
+#     参数:
+#         image_path: 图像文件路径
+        
+#     返回:
+#         numbers: 数字列表，每个元素为字典，包含'value'和'position'
+#         texts: 文本列表，每个元素为字典，包含'content'和'position'
+#     """
+#     # 使用PIL读取图像
+#     img = read_image_pil(image_path)
+#     if img is None:
+#         raise ValueError("无法读取图像文件")
+    
+#     # 获取图像尺寸
+#     height, width = img.shape[:2]
+    
+#     # 提取下四分之一区域作为OCR识别区域
+#     roi_height = height // 4
+#     roi_start = height - roi_height
+#     roi_region = img[roi_start:height, 0:width]
+    
+#     # 将ROI区域保存为临时文件
+#     temp_path = "temp_ocr_roi.png"
+#     cv2.imwrite(temp_path, roi_region)
+    
+#     try:
+#         # 使用EasyOCR识别ROI区域的文本
+#         results = reader.readtext(temp_path)
+#     finally:
+#         # 删除临时文件
+#         if os.path.exists(temp_path):
+#             os.remove(temp_path)
+    
+#     numbers = []
+#     texts = []
+    
+#     # 正则表达式匹配数字（包括整数、小数、负数、科学计数法）
+#     number_pattern = r'^[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?$'
+    
+#     for result in results:
+#         # result格式: (bbox, text, confidence)
+#         bbox, text, confidence = result
+        
+#         # 清理文本，去除空格和特殊字符
+#         cleaned_text = text.strip()
+        
+#         # 处理负号被识别为"一"的情况
+#         # 如果文本以"一"开头且后面跟着数字，将"一"替换为"-"
+#         if cleaned_text.startswith('一') and len(cleaned_text) > 1:
+#             # 检查第二个字符是否为数字
+#             if cleaned_text[1].isdigit():
+#                 cleaned_text = '-' + cleaned_text[1:]
+        
+#         # 尝试将文本转换为数字
+#         try:
+#             # 检查是否是纯数字格式
+#             if re.match(number_pattern, cleaned_text):
+#                 value = float(cleaned_text)
+                
+#                 # 计算边界框的中心位置（相对于ROI区域）
+#                 x_coords = [point[0] for point in bbox]
+#                 y_coords = [point[1] for point in bbox]
+#                 center_x = sum(x_coords) / len(x_coords)
+#                 center_y = sum(y_coords) / len(y_coords)
+                
+#                 # 将坐标转换回原图坐标系
+#                 # x坐标不变，y坐标需要加上ROI的起始位置
+#                 center_x_full = center_x
+#                 center_y_full = center_y + roi_start
+                
+#                 # 同时转换整个边界框的坐标
+#                 bbox_full = [(point[0], point[1] + roi_start) for point in bbox]
+                
+#                 numbers.append({
+#                     'value': value,
+#                     'position': (center_x_full, center_y_full),
+#                     'bbox': bbox_full,  # 完整边界框（相对于全图）
+#                     'confidence': confidence
+#                 })
+#             else:
+#                 # 如果不是数字，作为文本处理
+#                 x_coords = [point[0] for point in bbox]
+#                 y_coords = [point[1] for point in bbox]
+#                 center_x = sum(x_coords) / len(x_coords)
+#                 center_y = sum(y_coords) / len(y_coords)
+                
+#                 # 将坐标转换回原图坐标系
+#                 center_x_full = center_x
+#                 center_y_full = center_y + roi_start
+                
+#                 # 同时转换整个边界框的坐标
+#                 bbox_full = [(point[0], point[1] + roi_start) for point in bbox]
+                
+#                 texts.append({
+#                     'content': cleaned_text,
+#                     'position': (center_x_full, center_y_full),
+#                     'bbox': bbox_full,  # 完整边界框（相对于全图）
+#                     'confidence': confidence
+#                 })
+#         except (ValueError, TypeError):
+#             # 转换失败，作为文本处理
+#             x_coords = [point[0] for point in bbox]
+#             y_coords = [point[1] for point in bbox]
+#             center_x = sum(x_coords) / len(x_coords)
+#             center_y = sum(y_coords) / len(y_coords)
+            
+#             # 将坐标转换回原图坐标系
+#             center_x_full = center_x
+#             center_y_full = center_y + roi_start
+            
+#             # 同时转换整个边界框的坐标
+#             bbox_full = [(point[0], point[1] + roi_start) for point in bbox]
+            
+#             texts.append({
+#                 'content': cleaned_text,
+#                 'position': (center_x_full, center_y_full),
+#                 'bbox': bbox_full,  # 完整边界框（相对于全图）
+#                 'confidence': confidence
+#             })
+    
+#     return numbers, texts
+def extract_text_num_x_axis_region(image_path):
     """
     使用EasyOCR识别X轴区域（下四分之一）的文本和数字
     
@@ -391,7 +632,7 @@ def extract_text_and_numbers_from_x_axis_region(image_path):
         texts: 文本列表，每个元素为字典，包含'content'和'position'
     """
     # 使用PIL读取图像
-    img = read_image_with_pil(image_path)
+    img = read_image_pil(image_path)
     if img is None:
         raise ValueError("无法读取图像文件")
     
@@ -403,8 +644,11 @@ def extract_text_and_numbers_from_x_axis_region(image_path):
     roi_start = height - roi_height
     roi_region = img[roi_start:height, 0:width]
     
+    # 基于原始图像文件名生成临时文件名
+    base_name = os.path.splitext(os.path.basename(image_path))[0]
+    temp_path = f"temp_ocr_roi_{base_name}.png"
+    
     # 将ROI区域保存为临时文件
-    temp_path = "temp_ocr_roi.png"
     cv2.imwrite(temp_path, roi_region)
     
     try:
@@ -427,6 +671,13 @@ def extract_text_and_numbers_from_x_axis_region(image_path):
         
         # 清理文本，去除空格和特殊字符
         cleaned_text = text.strip()
+        
+        # 处理负号被识别为"一"的情况
+        # 如果文本以"一"开头且后面跟着数字，将"一"替换为"-"
+        if cleaned_text.startswith('一') and len(cleaned_text) > 1:
+            # 检查第二个字符是否为数字
+            if cleaned_text[1].isdigit():
+                cleaned_text = '-' + cleaned_text[1:]
         
         # 尝试将文本转换为数字
         try:
@@ -577,7 +828,7 @@ def visualize_bidirectional_results_with_ocr(image_path, left_edge, right_edge, 
     """
     img = cv2.imread(image_path)
     if img is None:
-        img = read_image_with_pil(image_path)
+        img = read_image_pil(image_path)
     
     height, width = img.shape[:2]
     roi_height = height // 4
@@ -804,17 +1055,17 @@ def visualize_bidirectional_results_with_ocr(image_path, left_edge, right_edge, 
 # 使用示例
 if __name__ == "__main__":
     # 替换为您的图像路径
-    image_path = "1.jpg"
+    image_path = "figs/22.tif"
     
     try:
         # 提取坐标
-        left_edge, right_edge, long_ticks, above_ticks, below_ticks = extract_x_axis_coordinates_bidirectional(image_path)
+        left_edge, right_edge, long_ticks, above_ticks, below_ticks = extract_x_coord_bidirectional(image_path)
         
         # 使用EasyOCR识别X轴区域的文本和数字
-        numbers, texts = extract_text_and_numbers_from_x_axis_region(image_path)
+        numbers, texts = extract_text_num_x_axis_region(image_path)
         
         # 过滤和合并文本
-        merged_texts = filter_and_merge_texts(texts, confidence_threshold=0.5, y_threshold=10)
+        merged_texts = filter_merge_texts(texts, confidence_threshold=0.5, y_threshold=10)
         
         # 提取x轴标题
         x_axis_title, other_texts = extract_x_axis_title(merged_texts)

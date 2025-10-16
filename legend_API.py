@@ -2,7 +2,8 @@ import cv2
 import numpy as np
 import os
 import tempfile
-from legend_YOLO import recognize
+#from legend_YOLO import recognize
+from legend_YOLO_CUDA import recognize
 #from legend_TesseractOCR import OCRLegendTextExtractor
 from legend_EasyOCR import OCRLegendTextExtractor
 class LegendDetectionPipeline:
@@ -15,7 +16,7 @@ class LegendDetectionPipeline:
         # 初始化图例提取器
         self.legend_extractor = OCRLegendTextExtractor()
     
-    def detect_and_crop_legend_regions(self, image_path, threshold=0.3):
+    def detect_crop_legend_region(self, image_path, threshold=0.3):
         """使用YOLO检测图例区域并裁剪出来"""
         # 读取图像
         img = cv2.imread(image_path)
@@ -107,7 +108,7 @@ class LegendDetectionPipeline:
         
         # 步骤1: 使用YOLO检测图例区域
         print("步骤1: 使用YOLO检测图例区域...")
-        cropped_regions = self.detect_and_crop_legend_regions(image_path, yolo_threshold)
+        cropped_regions = self.detect_crop_legend_region(image_path, yolo_threshold)
         
         if not cropped_regions:
             print("未检测到图例区域")

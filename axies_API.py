@@ -16,10 +16,10 @@ reader = easyocr.Reader(['ch_sim', 'en'])
 
 # 导入X轴和Y轴处理函数
 from axies_X import (
-    read_image_with_pil,
-    extract_x_axis_coordinates_bidirectional,
-    extract_text_and_numbers_from_x_axis_region,
-    filter_and_merge_texts as filter_and_merge_texts_x,
+    read_image_pil,
+    extract_x_coord_bidirectional,
+    extract_text_num_x_axis_region,
+    filter_merge_texts as filter_and_merge_texts_x,
     extract_x_axis_title,
     calculate_pixels_per_value,
     visualize_bidirectional_results_with_ocr as visualize_x_results
@@ -109,10 +109,10 @@ class AxesExtractor:
         """
         try:
             # 提取X轴坐标
-            left_edge, right_edge, long_ticks, above_ticks, below_ticks = extract_x_axis_coordinates_bidirectional(image_path)
+            left_edge, right_edge, long_ticks, above_ticks, below_ticks = extract_x_coord_bidirectional(image_path)
             
             # 使用EasyOCR识别X轴区域的文本和数字
-            numbers, texts = extract_text_and_numbers_from_x_axis_region(image_path)
+            numbers, texts = extract_text_num_x_axis_region(image_path)
             
             # 过滤和合并文本
             merged_texts = filter_and_merge_texts_x(texts, confidence_threshold=0.5, y_threshold=10)

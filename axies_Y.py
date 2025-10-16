@@ -11,7 +11,7 @@ import os
 # 初始化EasyOCR阅读器（支持英文和中文）
 reader = easyocr.Reader(['ch_sim', 'en'],gpu=True)
 
-def read_image_with_pil(image_path):
+def read_image_pil(image_path):
     """
     使用PIL读取图像，解决OpenCV无法处理LZW压缩的问题
     
@@ -139,6 +139,251 @@ def filter_and_merge_texts(texts, confidence_threshold=0.5, x_threshold=10):
     
     return merged_texts
 
+# def extract_rotated_y_axis_title(image_path, y_axis_position, numbers, texts):
+#     """
+#     专门提取旋转的Y轴标题
+#     通过旋转图像区域使标题变为正常方向，然后进行识别
+    
+#     参数:
+#         image_path: 图像文件路径
+#         y_axis_position: Y轴位置（"left"或"right"）
+#         numbers: 已识别的数字列表（用于排除数字区域）
+#         texts: 已识别的文本列表（用于排除已识别区域）
+        
+#     返回:
+#         y_axis_title: Y轴标题信息，如果没有则返回None
+#     """
+#     # 使用PIL读取图像
+#     img = read_image_pil(image_path)
+#     if img is None:
+#         raise ValueError("无法读取图像文件")
+    
+#     # 获取图像尺寸
+#     height, width = img.shape[:2]
+    
+#     # 根据Y轴位置确定标题区域
+#     if y_axis_position == "left":
+#         # 左侧Y轴，标题通常在左侧中间位置
+#         title_roi_width = width // 8
+#         title_roi_height = height // 3
+#         title_roi_x = 0
+#         title_roi_y = (height - title_roi_height) // 2
+#     else:
+#         # 右侧Y轴，标题通常在右侧中间位置
+#         title_roi_width = width // 8
+#         title_roi_height = height // 3
+#         title_roi_x = width - title_roi_width
+#         title_roi_y = (height - title_roi_height) // 2
+    
+#     # 提取标题区域
+#     title_roi = img[title_roi_y:title_roi_y+title_roi_height, 
+#                    title_roi_x:title_roi_x+title_roi_width]
+    
+#     # 将标题区域顺时针旋转90度，使旋转的标题变为正常方向
+#     rotated_title_roi = cv2.rotate(title_roi, cv2.ROTATE_90_CLOCKWISE)
+    
+#     # 将旋转后的区域保存为临时文件
+#     temp_path = "temp_y_title_rotated.png"
+#     cv2.imwrite(temp_path, rotated_title_roi)
+    
+#     try:
+#         # 使用EasyOCR识别旋转后的标题区域
+#         title_results = reader.readtext(temp_path)
+#     finally:
+#         # 删除临时文件
+#         if os.path.exists(temp_path):
+#             os.remove(temp_path)
+    
+#     # 处理识别结果
+#     title_candidates = []
+    
+#     # 正则表达式匹配数字（用于排除数字）
+#     number_pattern = r'^[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?$'
+    
+#     for result in title_results:
+#         bbox, text, confidence = result
+        
+#         # 清理文本
+#         cleaned_text = text.strip()
+        
+#         # 排除数字和短文本（标题通常是较长的文本）
+#         if (not re.match(number_pattern, cleaned_text) and 
+#             len(cleaned_text) > 1 and  # 排除单个字符
+#             confidence >= 0.5):  # 置信度阈值
+        
+#             # 计算边界框的中心位置（相对于旋转后的ROI区域）
+#             x_coords = [point[0] for point in bbox]
+#             y_coords = [point[1] for point in bbox]
+#             center_x = sum(x_coords) / len(x_coords)
+#             center_y = sum(y_coords) / len(y_coords)
+            
+#             # 将坐标转换回原图坐标系
+#             # 由于图像被旋转了，需要反向转换坐标
+#             if y_axis_position == "left":
+#                 # 对于左侧Y轴，旋转前的坐标转换
+#                 orig_x = title_roi_x + (title_roi_height - center_y)
+#                 orig_y = title_roi_y + center_x
+#             else:
+#                 # 对于右侧Y轴，旋转前的坐标转换
+#                 orig_x = title_roi_x + center_y
+#                 orig_y = title_roi_y + (title_roi_width - center_x)
+            
+#             # 转换整个边界框的坐标
+#             bbox_orig = []
+#             for point in bbox:
+#                 if y_axis_position == "left":
+#                     orig_point_x = title_roi_x + (title_roi_height - point[1])
+#                     orig_point_y = title_roi_y + point[0]
+#                 else:
+#                     orig_point_x = title_roi_x + point[1]
+#                     orig_point_y = title_roi_y + (title_roi_width - point[0])
+#                 bbox_orig.append((orig_point_x, orig_point_y))
+            
+#             title_candidates.append({
+#                 'content': cleaned_text,
+#                 'position': (orig_x, orig_y),
+#                 'bbox': bbox_orig,
+#                 'confidence': confidence
+#             })
+    
+#     # 选择最可能的标题
+#     if title_candidates:
+#         # 按置信度和文本长度综合评分
+#         for candidate in title_candidates:
+#             # 评分公式：置信度 * 文本长度
+#             candidate['score'] = candidate['confidence'] * len(candidate['content'])
+        
+#         # 选择评分最高的候选作为标题
+#         best_candidate = max(title_candidates, key=lambda x: x['score'])
+#         return best_candidate
+    
+#     return None
+# def extract_rotated_y_axis_title(image_path, y_axis_position, numbers, texts):
+#     """
+#     专门提取旋转的Y轴标题
+#     通过旋转图像区域使标题变为正常方向，然后进行识别
+    
+#     参数:
+#         image_path: 图像文件路径
+#         y_axis_position: Y轴位置（"left"或"right"）
+#         numbers: 已识别的数字列表（用于排除数字区域）
+#         texts: 已识别的文本列表（用于排除已识别区域）
+        
+#     返回:
+#         y_axis_title: Y轴标题信息，如果没有则返回None
+#     """
+#     # 使用PIL读取图像
+#     img = read_image_pil(image_path)
+#     if img is None:
+#         raise ValueError("无法读取图像文件")
+    
+#     # 获取图像尺寸
+#     height, width = img.shape[:2]
+    
+#     # 根据Y轴位置确定标题区域
+#     if y_axis_position == "left":
+#         # 左侧Y轴，标题通常在左侧中间位置
+#         title_roi_width = width // 8
+#         title_roi_height = height // 3
+#         title_roi_x = 0
+#         title_roi_y = (height - title_roi_height) // 2
+#     else:
+#         # 右侧Y轴，标题通常在右侧中间位置
+#         title_roi_width = width // 8
+#         title_roi_height = height // 3
+#         title_roi_x = width - title_roi_width
+#         title_roi_y = (height - title_roi_height) // 2
+    
+#     # 提取标题区域
+#     title_roi = img[title_roi_y:title_roi_y+title_roi_height, 
+#                    title_roi_x:title_roi_x+title_roi_width]
+    
+#     # 将标题区域顺时针旋转90度，使旋转的标题变为正常方向
+#     rotated_title_roi = cv2.rotate(title_roi, cv2.ROTATE_90_CLOCKWISE)
+    
+#     # 将旋转后的区域保存为临时文件
+#     temp_path = "temp_y_title_rotated.png"
+#     cv2.imwrite(temp_path, rotated_title_roi)
+    
+#     try:
+#         # 使用EasyOCR识别旋转后的标题区域
+#         title_results = reader.readtext(temp_path)
+#     finally:
+#         # 删除临时文件
+#         if os.path.exists(temp_path):
+#             os.remove(temp_path)
+    
+#     # 处理识别结果
+#     title_candidates = []
+    
+#     # 正则表达式匹配数字（用于排除数字）
+#     number_pattern = r'^[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?$'
+    
+#     for result in title_results:
+#         bbox, text, confidence = result
+        
+#         # 清理文本
+#         cleaned_text = text.strip()
+        
+#         # 处理负号被识别为"一"的情况
+#         # 如果文本以"一"开头且后面跟着数字，将"一"替换为"-"
+#         if cleaned_text.startswith('一') and len(cleaned_text) > 1:
+#             # 检查第二个字符是否为数字
+#             if cleaned_text[1].isdigit():
+#                 cleaned_text = '-' + cleaned_text[1:]
+        
+#         # 排除数字和短文本（标题通常是较长的文本）
+#         if (not re.match(number_pattern, cleaned_text) and 
+#             len(cleaned_text) > 1 and  # 排除单个字符
+#             confidence >= 0.5):  # 置信度阈值
+        
+#             # 计算边界框的中心位置（相对于旋转后的ROI区域）
+#             x_coords = [point[0] for point in bbox]
+#             y_coords = [point[1] for point in bbox]
+#             center_x = sum(x_coords) / len(x_coords)
+#             center_y = sum(y_coords) / len(y_coords)
+            
+#             # 将坐标转换回原图坐标系
+#             # 由于图像被旋转了，需要反向转换坐标
+#             if y_axis_position == "left":
+#                 # 对于左侧Y轴，旋转前的坐标转换
+#                 orig_x = title_roi_x + (title_roi_height - center_y)
+#                 orig_y = title_roi_y + center_x
+#             else:
+#                 # 对于右侧Y轴，旋转前的坐标转换
+#                 orig_x = title_roi_x + center_y
+#                 orig_y = title_roi_y + (title_roi_width - center_x)
+            
+#             # 转换整个边界框的坐标
+#             bbox_orig = []
+#             for point in bbox:
+#                 if y_axis_position == "left":
+#                     orig_point_x = title_roi_x + (title_roi_height - point[1])
+#                     orig_point_y = title_roi_y + point[0]
+#                 else:
+#                     orig_point_x = title_roi_x + point[1]
+#                     orig_point_y = title_roi_y + (title_roi_width - point[0])
+#                 bbox_orig.append((orig_point_x, orig_point_y))
+            
+#             title_candidates.append({
+#                 'content': cleaned_text,
+#                 'position': (orig_x, orig_y),
+#                 'bbox': bbox_orig,
+#                 'confidence': confidence
+#             })
+    
+#     # 选择最可能的标题
+#     if title_candidates:
+#         # 按置信度和文本长度综合评分
+#         for candidate in title_candidates:
+#             # 评分公式：置信度 * 文本长度
+#             candidate['score'] = candidate['confidence'] * len(candidate['content'])
+        
+#         # 选择评分最高的候选作为标题
+#         best_candidate = max(title_candidates, key=lambda x: x['score'])
+#         return best_candidate
+    
+#     return None
 def extract_rotated_y_axis_title(image_path, y_axis_position, numbers, texts):
     """
     专门提取旋转的Y轴标题
@@ -154,7 +399,7 @@ def extract_rotated_y_axis_title(image_path, y_axis_position, numbers, texts):
         y_axis_title: Y轴标题信息，如果没有则返回None
     """
     # 使用PIL读取图像
-    img = read_image_with_pil(image_path)
+    img = read_image_pil(image_path)
     if img is None:
         raise ValueError("无法读取图像文件")
     
@@ -182,8 +427,11 @@ def extract_rotated_y_axis_title(image_path, y_axis_position, numbers, texts):
     # 将标题区域顺时针旋转90度，使旋转的标题变为正常方向
     rotated_title_roi = cv2.rotate(title_roi, cv2.ROTATE_90_CLOCKWISE)
     
+    # 基于原始图像文件名生成临时文件名
+    base_name = os.path.splitext(os.path.basename(image_path))[0]
+    temp_path = f"temp_y_title_rotated_{base_name}.png"
+    
     # 将旋转后的区域保存为临时文件
-    temp_path = "temp_y_title_rotated.png"
     cv2.imwrite(temp_path, rotated_title_roi)
     
     try:
@@ -205,6 +453,13 @@ def extract_rotated_y_axis_title(image_path, y_axis_position, numbers, texts):
         
         # 清理文本
         cleaned_text = text.strip()
+        
+        # 处理负号被识别为"一"的情况
+        # 如果文本以"一"开头且后面跟着数字，将"一"替换为"-"
+        if cleaned_text.startswith('一') and len(cleaned_text) > 1:
+            # 检查第二个字符是否为数字
+            if cleaned_text[1].isdigit():
+                cleaned_text = '-' + cleaned_text[1:]
         
         # 排除数字和短文本（标题通常是较长的文本）
         if (not re.match(number_pattern, cleaned_text) and 
@@ -333,7 +588,7 @@ def extract_y_axis_coordinates_bidirectional_auto(image_path):
     """
     
     # 使用PIL读取图像
-    img = read_image_with_pil(image_path)
+    img = read_image_pil(image_path)
     if img is None:
         raise ValueError("无法读取图像文件")
     
@@ -543,6 +798,261 @@ def extract_y_axis_coordinates_bidirectional_auto(image_path):
     
     return bottom_edge_global, top_edge_global, long_ticks_global, left_ticks_global, right_ticks_global, y_axis_position
 
+# def extract_text_and_numbers_from_y_axis_region(image_path, y_axis_position):
+#     """
+#     使用EasyOCR识别Y轴区域（左或右四分之一）的文本和数字
+    
+#     参数:
+#         image_path: 图像文件路径
+#         y_axis_position: Y轴位置（"left"或"right"）
+        
+#     返回:
+#         numbers: 数字列表，每个元素为字典，包含'value'和'position'
+#         texts: 文本列表，每个元素为字典，包含'content'和'position'
+#     """
+#     # 使用PIL读取图像
+#     img = read_image_pil(image_path)
+#     if img is None:
+#         raise ValueError("无法读取图像文件")
+    
+#     # 获取图像尺寸
+#     height, width = img.shape[:2]
+    
+#     # 根据Y轴位置提取相应的ROI区域
+#     roi_width = width // 4
+#     if y_axis_position == "left":
+#         # Y轴在左侧，提取左四分之一区域
+#         roi_region = img[0:height, 0:roi_width]
+#         roi_offset_x = 0
+#     else:
+#         # Y轴在右侧，提取右四分之一区域
+#         roi_region = img[0:height, width - roi_width:width]
+#         roi_offset_x = width - roi_width
+    
+#     # 将ROI区域保存为临时文件
+#     temp_path = "temp_ocr_roi_y.png"
+#     cv2.imwrite(temp_path, roi_region)
+    
+#     try:
+#         # 使用EasyOCR识别ROI区域的文本
+#         results = reader.readtext(temp_path)
+#     finally:
+#         # 删除临时文件
+#         if os.path.exists(temp_path):
+#             os.remove(temp_path)
+    
+#     numbers = []
+#     texts = []
+    
+#     # 正则表达式匹配数字（包括整数、小数、负数、科学计数法）
+#     number_pattern = r'^[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?$'
+    
+#     for result in results:
+#         # result格式: (bbox, text, confidence)
+#         bbox, text, confidence = result
+        
+#         # 清理文本，去除空格和特殊字符
+#         cleaned_text = text.strip()
+        
+#         # 尝试将文本转换为数字
+#         try:
+#             # 检查是否是纯数字格式
+#             if re.match(number_pattern, cleaned_text):
+#                 value = float(cleaned_text)
+                
+#                 # 计算边界框的中心位置（相对于ROI区域）
+#                 x_coords = [point[0] for point in bbox]
+#                 y_coords = [point[1] for point in bbox]
+#                 center_x = sum(x_coords) / len(x_coords)
+#                 center_y = sum(y_coords) / len(y_coords)
+                
+#                 # 将坐标转换回原图坐标系
+#                 # x坐标需要加上ROI的偏移量，y坐标不变
+#                 center_x_full = center_x + roi_offset_x
+#                 center_y_full = center_y
+                
+#                 # 同时转换整个边界框的坐标
+#                 bbox_full = [(point[0] + roi_offset_x, point[1]) for point in bbox]
+                
+#                 numbers.append({
+#                     'value': value,
+#                     'position': (center_x_full, center_y_full),
+#                     'bbox': bbox_full,  # 完整边界框（相对于全图）
+#                     'confidence': confidence
+#                 })
+#             else:
+#                 # 如果不是数字，作为文本处理
+#                 x_coords = [point[0] for point in bbox]
+#                 y_coords = [point[1] for point in bbox]
+#                 center_x = sum(x_coords) / len(x_coords)
+#                 center_y = sum(y_coords) / len(y_coords)
+                
+#                 # 将坐标转换回原图坐标系
+#                 center_x_full = center_x + roi_offset_x
+#                 center_y_full = center_y
+                
+#                 # 同时转换整个边界框的坐标
+#                 bbox_full = [(point[0] + roi_offset_x, point[1]) for point in bbox]
+                
+#                 texts.append({
+#                     'content': cleaned_text,
+#                     'position': (center_x_full, center_y_full),
+#                     'bbox': bbox_full,  # 完整边界框（相对于全图）
+#                     'confidence': confidence
+#                 })
+#         except (ValueError, TypeError):
+#             # 转换失败，作为文本处理
+#             x_coords = [point[0] for point in bbox]
+#             y_coords = [point[1] for point in bbox]
+#             center_x = sum(x_coords) / len(x_coords)
+#             center_y = sum(y_coords) / len(y_coords)
+            
+#             # 将坐标转换回原图坐标系
+#             center_x_full = center_x + roi_offset_x
+#             center_y_full = center_y
+            
+#             # 同时转换整个边界框的坐标
+#             bbox_full = [(point[0] + roi_offset_x, point[1]) for point in bbox]
+            
+#             texts.append({
+#                 'content': cleaned_text,
+#                 'position': (center_x_full, center_y_full),
+#                 'bbox': bbox_full,  # 完整边界框（相对于全图）
+#                 'confidence': confidence
+#             })
+    
+#     return numbers, texts
+# def extract_text_and_numbers_from_y_axis_region(image_path, y_axis_position):
+#     """
+#     使用EasyOCR识别Y轴区域（左或右四分之一）的文本和数字
+    
+#     参数:
+#         image_path: 图像文件路径
+#         y_axis_position: Y轴位置（"left"或"right")
+        
+#     返回:
+#         numbers: 数字列表，每个元素为字典，包含'value'和'position'
+#         texts: 文本列表，每个元素为字典，包含'content'和'position'
+#     """
+#     # 使用PIL读取图像
+#     img = read_image_pil(image_path)
+#     if img is None:
+#         raise ValueError("无法读取图像文件")
+    
+#     # 获取图像尺寸
+#     height, width = img.shape[:2]
+    
+#     # 根据Y轴位置提取相应的ROI区域
+#     roi_width = width // 4
+#     if y_axis_position == "left":
+#         # Y轴在左侧，提取左四分之一区域
+#         roi_region = img[0:height, 0:roi_width]
+#         roi_offset_x = 0
+#     else:
+#         # Y轴在右侧，提取右四分之一区域
+#         roi_region = img[0:height, width - roi_width:width]
+#         roi_offset_x = width - roi_width
+    
+#     # 将ROI区域保存为临时文件
+#     temp_path = "temp_ocr_roi_y.png"
+#     cv2.imwrite(temp_path, roi_region)
+    
+#     try:
+#         # 使用EasyOCR识别ROI区域的文本
+#         results = reader.readtext(temp_path)
+#     finally:
+#         # 删除临时文件
+#         if os.path.exists(temp_path):
+#             os.remove(temp_path)
+    
+#     numbers = []
+#     texts = []
+    
+#     # 正则表达式匹配数字（包括整数、小数、负数、科学计数法）
+#     number_pattern = r'^[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?$'
+    
+#     for result in results:
+#         # result格式: (bbox, text, confidence)
+#         bbox, text, confidence = result
+        
+#         # 清理文本，去除空格和特殊字符
+#         cleaned_text = text.strip()
+        
+#         # 处理负号被识别为"一"的情况
+#         # 如果文本以"一"开头且后面跟着数字，将"一"替换为"-"
+#         if cleaned_text.startswith('一') and len(cleaned_text) > 1:
+#             # 检查第二个字符是否为数字
+#             if cleaned_text[1].isdigit():
+#                 cleaned_text = '-' + cleaned_text[1:]
+        
+#         # 尝试将文本转换为数字
+#         try:
+#             # 检查是否是纯数字格式
+#             if re.match(number_pattern, cleaned_text):
+#                 value = float(cleaned_text)
+                
+#                 # 计算边界框的中心位置（相对于ROI区域）
+#                 x_coords = [point[0] for point in bbox]
+#                 y_coords = [point[1] for point in bbox]
+#                 center_x = sum(x_coords) / len(x_coords)
+#                 center_y = sum(y_coords) / len(y_coords)
+                
+#                 # 将坐标转换回原图坐标系
+#                 # x坐标需要加上ROI的偏移量，y坐标不变
+#                 center_x_full = center_x + roi_offset_x
+#                 center_y_full = center_y
+                
+#                 # 同时转换整个边界框的坐标
+#                 bbox_full = [(point[0] + roi_offset_x, point[1]) for point in bbox]
+                
+#                 numbers.append({
+#                     'value': value,
+#                     'position': (center_x_full, center_y_full),
+#                     'bbox': bbox_full,  # 完整边界框（相对于全图）
+#                     'confidence': confidence
+#                 })
+#             else:
+#                 # 如果不是数字，作为文本处理
+#                 x_coords = [point[0] for point in bbox]
+#                 y_coords = [point[1] for point in bbox]
+#                 center_x = sum(x_coords) / len(x_coords)
+#                 center_y = sum(y_coords) / len(y_coords)
+                
+#                 # 将坐标转换回原图坐标系
+#                 center_x_full = center_x + roi_offset_x
+#                 center_y_full = center_y
+                
+#                 # 同时转换整个边界框的坐标
+#                 bbox_full = [(point[0] + roi_offset_x, point[1]) for point in bbox]
+                
+#                 texts.append({
+#                     'content': cleaned_text,
+#                     'position': (center_x_full, center_y_full),
+#                     'bbox': bbox_full,  # 完整边界框（相对于全图）
+#                     'confidence': confidence
+#                 })
+#         except (ValueError, TypeError):
+#             # 转换失败，作为文本处理
+#             x_coords = [point[0] for point in bbox]
+#             y_coords = [point[1] for point in bbox]
+#             center_x = sum(x_coords) / len(x_coords)
+#             center_y = sum(y_coords) / len(y_coords)
+            
+#             # 将坐标转换回原图坐标系
+#             center_x_full = center_x + roi_offset_x
+#             center_y_full = center_y
+            
+#             # 同时转换整个边界框的坐标
+#             bbox_full = [(point[0] + roi_offset_x, point[1]) for point in bbox]
+            
+#             texts.append({
+#                 'content': cleaned_text,
+#                 'position': (center_x_full, center_y_full),
+#                 'bbox': bbox_full,  # 完整边界框（相对于全图）
+#                 'confidence': confidence
+#             })
+    
+#     return numbers, texts
 def extract_text_and_numbers_from_y_axis_region(image_path, y_axis_position):
     """
     使用EasyOCR识别Y轴区域（左或右四分之一）的文本和数字
@@ -556,7 +1066,7 @@ def extract_text_and_numbers_from_y_axis_region(image_path, y_axis_position):
         texts: 文本列表，每个元素为字典，包含'content'和'position'
     """
     # 使用PIL读取图像
-    img = read_image_with_pil(image_path)
+    img = read_image_pil(image_path)
     if img is None:
         raise ValueError("无法读取图像文件")
     
@@ -574,8 +1084,11 @@ def extract_text_and_numbers_from_y_axis_region(image_path, y_axis_position):
         roi_region = img[0:height, width - roi_width:width]
         roi_offset_x = width - roi_width
     
+    # 基于原始图像文件名生成临时文件名
+    base_name = os.path.splitext(os.path.basename(image_path))[0]
+    temp_path = f"temp_ocr_roi_y_{base_name}.png"
+    
     # 将ROI区域保存为临时文件
-    temp_path = "temp_ocr_roi_y.png"
     cv2.imwrite(temp_path, roi_region)
     
     try:
@@ -598,6 +1111,13 @@ def extract_text_and_numbers_from_y_axis_region(image_path, y_axis_position):
         
         # 清理文本，去除空格和特殊字符
         cleaned_text = text.strip()
+        
+        # 处理负号被识别为"一"的情况
+        # 如果文本以"一"开头且后面跟着数字，将"一"替换为"-"
+        if cleaned_text.startswith('一') and len(cleaned_text) > 1:
+            # 检查第二个字符是否为数字
+            if cleaned_text[1].isdigit():
+                cleaned_text = '-' + cleaned_text[1:]
         
         # 尝试将文本转换为数字
         try:
@@ -748,7 +1268,7 @@ def visualize_y_bidirectional_results_with_ocr(image_path, bottom_edge, top_edge
     """
     img = cv2.imread(image_path)
     if img is None:
-        img = read_image_with_pil(image_path)
+        img = read_image_pil(image_path)
     
     height, width = img.shape[:2]
     roi_width = width // 4
@@ -1007,7 +1527,7 @@ def visualize_y_bidirectional_results_with_ocr(image_path, bottom_edge, top_edge
 # 使用示例
 if __name__ == "__main__":
     # 替换为您的图像路径
-    image_path = "1.jpg"
+    image_path = "figs/23.tif"
     
     try:
         # 自动检测Y轴位置
