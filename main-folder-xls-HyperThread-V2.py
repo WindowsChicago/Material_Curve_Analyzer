@@ -3,6 +3,7 @@ import json
 import os
 import pandas as pd
 import threading
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from axies_API import AxesExtractor
 from curve_API import CurveAnalysisAPI
@@ -10,6 +11,20 @@ from curve_API import CurveAnalysisAPI
 # 线程锁，用于保护共享资源
 file_lock = threading.Lock()
 data_lock = threading.Lock()
+
+def natural_sort_key(filename):
+    """
+    自然排序键函数，按数字大小排序而不是字符串排序
+    例如: 1.jpg, 2.jpg, 10.jpg 而不是 1.jpg, 10.jpg, 2.jpg
+    """
+    # 使用正则表达式提取文件名中的数字部分
+    numbers = re.findall(r'\d+', filename)
+    if numbers:
+        # 返回数字的整数值用于排序
+        return int(numbers[0])
+    else:
+        # 如果没有数字，返回原文件名
+        return filename
 
 def safe_format(value, format_spec=".2f"):
     """
@@ -26,6 +41,22 @@ def safe_format(value, format_spec=".2f"):
         return "None"
     try:
         return format(value, format_spec)
+    except (TypeError, ValueError):
+        return str(value)
+
+def format_coordinate_value(value):
+    """
+    格式化坐标值，与extractor.xlsx保持一致
+    使用科学计数法格式，保持与参考文件相同的精度
+    """
+    if value is None:
+        return "0"
+    try:
+        # 对于小数值使用科学计数法，保持与extractor.xlsx相同的格式
+        if abs(value) < 0.01 and value != 0:
+            return "{:.5E}".format(value).replace('E-0', 'E-').replace('E+0', 'E+').replace('E-', 'E-')
+        else:
+            return "{:.5f}".format(value).rstrip('0').rstrip('.')
     except (TypeError, ValueError):
         return str(value)
 
@@ -142,7 +173,7 @@ def process_single_image(image_path, image_index, total_images):
             print(f"线程 {thread_name}: 警告: 没有成功转换任何曲线数据")
             return None
         
-        # 步骤4: 构建Excel数据
+        # 步骤4: 构建Excel数据 - 修改为与extractor.xlsx完全一致的格式
         print(f"\n线程 {thread_name}: 步骤4: 构建Excel数据...")
         excel_data = []
         
@@ -150,11 +181,18 @@ def process_single_image(image_path, image_index, total_images):
         image_id = os.path.splitext(image_name)[0]
         
         for curve in transformed_curves:
-            # 将坐标点列表转换为字符串格式，便于在Excel中存储
-            points_str = json.dumps(curve['transformed_points'], ensure_ascii=False)
+            # 将坐标点列表转换为与extractor.xlsx相同的格式: x值\ty值\n
+            points_lines = []
+            for point in curve['transformed_points']:
+                x_str = format_coordinate_value(point[0])
+                y_str = format_coordinate_value(point[1])
+                points_lines.append(f"{x_str}\t{y_str}")
             
+            points_str = '<br>'.join(points_lines)  # 使用<br>作为换行符，与extractor.xlsx一致
+            
+            # 只保留必要的列，与extractor.xlsx结构完全一致
             row_data = {
-                'figure_name (id)': f"{image_name} ({image_id})",
+                'figure_name (id)': image_name,
                 'figure_index': '',  # 空着不填
                 'figure_title': '',  # 空着不填
                 'x-label': x_title,
@@ -209,15 +247,15 @@ def process_all_images(figs_folder="figs", output_file="results.xlsx", max_worke
         if file_ext in supported_formats:
             image_files.append(os.path.join(figs_folder, file))
     
-    # 按文件名排序
-    image_files.sort()
+    # 使用自然排序而不是字符串排序
+    image_files.sort(key=lambda x: natural_sort_key(os.path.basename(x)))
     
     if not image_files:
         print(f"在文件夹 '{figs_folder}' 中没有找到支持的图片文件")
         print(f"支持的格式: {', '.join(supported_formats)}")
         return
     
-    print(f"找到 {len(image_files)} 个图片文件:")
+    print(f"找到 {len(image_files)} 个图片文件 (按数字顺序排序):")
     for img_file in image_files:
         print(f"  - {os.path.basename(img_file)}")
     
@@ -259,8 +297,8 @@ def process_all_images(figs_folder="figs", output_file="results.xlsx", max_worke
                     failed_images.append(image_name)
                 print(f"✗ 处理异常: {image_name} - {e}")
     
-    # 按照原始文件名顺序对处理结果进行排序
-    processed_results.sort(key=lambda x: x['image_path'])
+    # 按照自然排序顺序对处理结果进行排序
+    processed_results.sort(key=lambda x: natural_sort_key(x['image_name']))
     all_excel_data_sorted = []
     
     # 重新构建排序后的Excel数据
@@ -271,40 +309,25 @@ def process_all_images(figs_folder="figs", output_file="results.xlsx", max_worke
         print("没有成功处理任何图片")
         return
     
-    # 创建DataFrame并保存为Excel
+    # 创建DataFrame并保存为Excel - 移除多余的格式设置
     print(f"\n{'='*80}")
     print("保存所有结果到Excel文件...")
     print(f"{'='*80}")
     
     try:
-        df = pd.DataFrame(all_excel_data_sorted)
+        # 创建与extractor.xlsx完全一致的DataFrame结构
+        df = pd.DataFrame(all_excel_data_sorted, columns=[
+            'figure_name (id)', 'figure_index', 'figure_title', 
+            'x-label', 'y-label', 'sample', 'point_coordinates', 'note'
+        ])
         
-        # 设置Excel写入器，优化格式
-        with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
-            df.to_excel(writer, sheet_name='All_Curve_Data', index=0)
-            
-            # 自动调整列宽
-            worksheet = writer.sheets['All_Curve_Data']
-            for column in worksheet.columns:
-                max_length = 0
-                column_letter = column[0].column_letter
-                for cell in column:
-                    try:
-                        if len(str(cell.value)) > max_length:
-                            max_length = len(str(cell.value))
-                    except:
-                        pass
-                adjusted_width = min(max_length + 2, 50)
-                worksheet.column_dimensions[column_letter].width = adjusted_width
-        
+        # 简化的Excel保存，不添加额外格式
+        df.to_excel(output_file, sheet_name='Sheet1', index=False)
         print(f"✓ Excel文件保存成功: {output_file}")
         
     except Exception as e:
         print(f"✗ 保存Excel文件失败: {e}")
         return
-    
-    # 创建汇总工作表
-    create_summary_sheet(processed_results, output_file, failed_images)
     
     # 显示处理统计信息
     print_processing_summary(processed_results, failed_images)
@@ -349,136 +372,10 @@ def print_processing_summary(processed_results, failed_images):
         for result in processed_results:
             print(f"{result['image_name']:<30} {result['x_title']:<20} {result['y_title']:<20} {result['curves_count']:<10}")
 
-def print_detailed_coordinates(all_excel_data, max_curves=3, max_points=5):
-    """
-    打印详细的坐标点信息
-    
-    参数:
-        all_excel_data: 所有Excel数据
-        max_curves: 显示的最大曲线数量
-        max_points: 每条曲线显示的最大点数
-    """
-    print("\n" + "=" * 60)
-    print("详细坐标点信息（预览）")
-    print("=" * 60)
-    
-    for i, row in enumerate(all_excel_data[:max_curves]):
-        try:
-            points = json.loads(row['point_coordinates'])
-            print(f"\n曲线 {i+1}: {row['sample']} (来自 {row['figure_name (id)']})")
-            print(f"坐标点 (显示前{min(max_points, len(points))}个):")
-            
-            for j, point in enumerate(points[:max_points]):
-                print(f"  点 {j+1:3d}: X = {safe_format(point[0], '12.6f')}, Y = {safe_format(point[1], '12.6f')}")
-            
-            if len(points) > max_points:
-                print(f"  ... (共{len(points)}个点)")
-        except Exception as e:
-            print(f"\n曲线 {i+1} 坐标解析错误: {e}")
-    
-    if len(all_excel_data) > max_curves:
-        print(f"\n... (共{len(all_excel_data)}条曲线，完整数据请查看Excel文件)")
-
-def create_summary_sheet(processed_results, output_filename, failed_images):
-    """
-    创建汇总信息工作表
-    
-    参数:
-        processed_results: 处理结果列表
-        output_filename: 输出文件名
-        failed_images: 处理失败的图片列表
-    """
-    try:
-        from openpyxl import load_workbook
-        
-        # 加载现有的Excel文件
-        wb = load_workbook(output_filename)
-        
-        # 创建汇总工作表
-        ws_summary = wb.create_sheet(title="Summary", index=1)
-        
-        # 添加汇总信息
-        summary_data = [
-            ["图像分析结果汇总"],
-            [""],
-            ["处理时间:", pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")],
-            ["成功处理的图片数量:", len(processed_results)],
-            ["处理失败的图片数量:", len(failed_images)],
-            ["总曲线数量:", sum(result['curves_count'] for result in processed_results)],
-            [""],
-            ["成功处理的图片列表:"],
-            ["图片名称", "X轴标题", "Y轴标题", "曲线数量"]
-        ]
-        
-        # 添加每个图片的信息
-        for result in processed_results:
-            summary_data.append([
-                result['image_name'],
-                result['x_title'],
-                result['y_title'],
-                result['curves_count']
-            ])
-        
-        if failed_images:
-            summary_data.extend([
-                [""],
-                ["处理失败的图片列表:"]
-            ])
-            for img in failed_images:
-                summary_data.append([img])
-        
-        summary_data.extend([
-            [""],
-            ["数据说明:"],
-            ["- figure_name (id): 图像名称和ID"],
-            ["- figure_index: 图像索引（暂空）"],
-            ["- figure_title: 图像标题（暂空）"],
-            ["- x-label: X轴标题"],
-            ["- y-label: Y轴标题"],
-            ["- sample: 图例/样本名称"],
-            ["- point_coordinates: 转换后的坐标点集合"],
-            ["- note: 备注（暂空）"]
-        ])
-        
-        # 写入汇总数据
-        for row_idx, row_data in enumerate(summary_data, 1):
-            for col_idx, value in enumerate(row_data, 1):
-                ws_summary.cell(row=row_idx, column=col_idx, value=value)
-        
-        # 设置标题样式
-        from openpyxl.styles import Font
-        ws_summary['A1'].font = Font(bold=True, size=14)
-        
-        # 自动调整列宽
-        for column in ws_summary.columns:
-            max_length = 0
-            column_letter = column[0].column_letter
-            for cell in column:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
-                except:
-                    pass
-            adjusted_width = min(max_length + 2, 50)
-            ws_summary.column_dimensions[column_letter].width = adjusted_width
-        
-        # 保存修改
-        wb.save(output_filename)
-        print(f"✓ 已添加汇总工作表到: {output_filename}")
-        
-    except ImportError:
-        print("警告: 未安装openpyxl，无法添加汇总工作表")
-    except Exception as e:
-        print(f"添加汇总工作表时出错: {e}")
-
 if __name__ == "__main__":
     try:
         # 处理figs文件夹中的所有图片
         result = process_all_images(figs_folder="figs", output_file="results.xlsx", max_workers=8)
-        
-        # 可选：打印详细坐标信息
-        if result:
-            print_detailed_coordinates(result['all_excel_data'], max_curves=3, max_points=5)
             
     except Exception as e:
         print(f"程序执行过程中出错: {e}")
