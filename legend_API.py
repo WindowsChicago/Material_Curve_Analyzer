@@ -219,7 +219,7 @@ def main():
     pipeline = LegendDetectionPipeline()
     
     # 图像路径
-    image_path = "4.jpg"  # 替换为您的图像路径
+    image_path = "1.jpg"  # 替换为您的图像路径
     
     try:
         # 执行完整的处理流程

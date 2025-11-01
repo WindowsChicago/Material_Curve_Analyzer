@@ -400,7 +400,7 @@ def analyze_image(image_path: str,
 # 使用示例和测试
 if __name__ == "__main__":
     # 示例用法
-    image_path = "2.jpg"  # 替换为您的图像路径
+    image_path = "1.jpg"  # 替换为您的图像路径
     
     try:
         # # 方法1: 使用便捷函数

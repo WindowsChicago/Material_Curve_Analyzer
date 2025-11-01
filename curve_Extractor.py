@@ -192,8 +192,8 @@ class CurveExtractor:
 
 def main():
     # 使用示例
-    image_path = "4.jpg"  # 替换为您的图像路径
-    target_color = "#81047a"  # 替换为您要提取的颜色
+    image_path = "1.jpg"  # 替换为您的图像路径
+    target_color = "#9a3f9e"  # 替换为您要提取的颜色
     
     try:
         # 创建提取器实例
