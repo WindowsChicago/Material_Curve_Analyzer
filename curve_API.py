@@ -6,13 +6,13 @@ import json
 from typing import Dict, List, Tuple, Any, Optional
 
 # 导入现有的功能模块
-from curve_Extractor import CurveExtractor
+from curve_Extractor_canary import CurveExtractor
 from legend_API import LegendDetectionPipeline
 
 class CurveAnalysisAPI:
     """曲线分析API - 整合图例检测和曲线提取功能"""
     
-    def __init__(self, yolo_model_path: str = "best.onnx"):
+    def __init__(self, yolo_model_path: str = "best-SimAM.onnx"):
         """
         初始化API
         
@@ -27,7 +27,7 @@ class CurveAnalysisAPI:
         
     def analyze_image(self, image_path: str, 
                      yolo_threshold: float = 0.3,
-                     curve_points: int = 128,
+                     curve_points: int = 1024,
                      color_tolerance: int = 40,
                      visualize: bool = False) -> Dict[str, Any]:
         """
@@ -340,7 +340,7 @@ def analyze_image(image_path: str,
 # 使用示例和测试
 if __name__ == "__main__":
     # 示例用法
-    image_path = "1.jpg"  # 替换为您的图像路径
+    image_path = "4.jpg"  # 替换为您的图像路径
     
     try:
         # # 方法1: 使用便捷函数

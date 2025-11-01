@@ -20,6 +20,7 @@ class CurveExtractor:
     def hex_to_rgb(self, hex_color):
         """将十六进制颜色转换为RGB"""
         hex_color = hex_color.lstrip('#')
+        print(tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4)))
         return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
     
     def find_color_mask(self, target_color, tolerance=40):
@@ -191,8 +192,8 @@ class CurveExtractor:
 
 def main():
     # 使用示例
-    image_path = "2.jpg"  # 替换为您的图像路径
-    target_color = "#ee2525"  # 替换为您要提取的颜色
+    image_path = "4.jpg"  # 替换为您的图像路径
+    target_color = "#81047a"  # 替换为您要提取的颜色
     
     try:
         # 创建提取器实例

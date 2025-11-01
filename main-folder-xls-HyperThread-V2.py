@@ -192,13 +192,13 @@ def process_single_image(image_path, image_index, total_images):
             
             # 只保留必要的列，与extractor.xlsx结构完全一致
             row_data = {
-                'figure_name (id)': image_name,
+                'DOI': image_name,
                 'figure_index': '',  # 空着不填
                 'figure_title': '',  # 空着不填
-                'x-label': x_title,
-                'y-label': y_title,
+                'X-label': x_title,
+                'Y-label': y_title,
                 'sample': curve['legend_name'],
-                'point_coordinates': points_str,
+                'Values': points_str,
                 'note': ''  # 空着不填
             }
             
@@ -223,7 +223,7 @@ def process_single_image(image_path, image_index, total_images):
         traceback.print_exc()
         return None
 
-def process_all_images(figs_folder="figs", output_file="results.xlsx", max_workers=8):
+def process_all_images(figs_folder="figs", output_file="extractor.xlsx", max_workers=8):
     """
     处理figs文件夹中的所有图片，并将结果保存到同一个Excel文件
     
@@ -317,8 +317,8 @@ def process_all_images(figs_folder="figs", output_file="results.xlsx", max_worke
     try:
         # 创建与extractor.xlsx完全一致的DataFrame结构
         df = pd.DataFrame(all_excel_data_sorted, columns=[
-            'figure_name (id)', 'figure_index', 'figure_title', 
-            'x-label', 'y-label', 'sample', 'point_coordinates', 'note'
+            'DOI', 'figure_index', 'figure_title', 
+            'X-label', 'Y-label', 'sample', 'Values', 'note'
         ])
         
         # 简化的Excel保存，不添加额外格式
@@ -375,7 +375,7 @@ def print_processing_summary(processed_results, failed_images):
 if __name__ == "__main__":
     try:
         # 处理figs文件夹中的所有图片
-        result = process_all_images(figs_folder="figs", output_file="results.xlsx", max_workers=8)
+        result = process_all_images(figs_folder="figs", output_file="extractor.xlsx", max_workers=8)
             
     except Exception as e:
         print(f"程序执行过程中出错: {e}")

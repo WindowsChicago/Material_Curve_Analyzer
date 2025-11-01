@@ -8,8 +8,8 @@
 * RC2:加入对linux的支持，转移开发环境到linux，加入requirements.txt以便于配置环境,修改了gitignore屏蔽更多类型的无用文件
 * RC3:加入读取文件夹的功能，对于对数轴导致的报错问题暂时采用忽略的方式处理,为OCR功能加入CUDA加速，大幅提升了运行速度，修改了结果文件输出的格式为比赛要求的格式
 * RC4:引入多线程设计（HyperThread V1和HyperPipeline V1）,大幅提升了运行速度，在测试机上运行时间缩短了约28%（4分10秒->3分03秒，works=4），修复了数轴识别匹配时无法正常识别负号的问题，为yolo部分引入了CUDA加速
-* RC5:修改文件输出，删除了sheet2（改为另外输出一个txt文件）、修改了单元格格式以解决裁判系统报错的问题，修改了文件输出顺序，改进了多线程设计（HyperThread V2，删除了HyperPipeLine模式），合并了系统算法说明和README.md，
-
+* RC5:修改文件输出，删除了sheet2（改为另外输出一个txt文件）、修改了单元格格式以解决裁判系统报错的问题，修改了文件输出顺序，改进了多线程设计（HyperThread V2，删除了HyperPipeLine模式），合并了系统算法说明和README.md,此为初赛的最终版本
+* RC6:修改文件输出格式为复赛格式，更新图例识别模型为复赛版本，加入了引入了CBAM、SimAM和公版三种模型，曲线提取器新增颜色宽容设计，初步修复了坐标轴在复赛数据集上的匹配问题，由于存在问题暂时禁用了超线程
 #### 整体设计：
 
 * 采用高度模块化设计，每个组件均可单独运行调试，方便进行改进
@@ -299,11 +299,11 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
 **结构化数据存储**：
 ```python
 excel_data = {
-    'figure_name (id)': "图像名称 (ID)",
-    'x-label': "X轴物理量",
-    'y-label': "Y轴物理量", 
+    'DOI': "图像名称 (ID)",
+    'X-label': "X轴物理量",
+    'Y-label': "Y轴物理量", 
     'sample': "曲线标识",
-    'point_coordinates': "标准化坐标数据",
+    'Values': "标准化坐标数据",
     'note': "备注信息"
 }
 ```

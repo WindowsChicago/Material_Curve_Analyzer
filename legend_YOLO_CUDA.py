@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-onnx_model_path = "best.onnx"
+onnx_model_path = "best-baseline.onnx"
 input_shape = (640, 640)
 
 # 读取网络并设置CUDA后端
@@ -67,4 +67,4 @@ def recognize(img_path, threshold=0.5):
 
 
 if __name__ == '__main__':
-    recognize('curve_m1/images/7.jpg', 0.3)
+    recognize('3.jpg', 0.3)

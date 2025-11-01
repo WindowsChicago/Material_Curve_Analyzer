@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-#plt.rc("font", family='Microsoft YaHei')
+plt.rc("font", family='Microsoft YaHei')
 plt.rcParams['font.family'].insert(0,'WenQuanYi Micro Hei')
 plt.rcParams['axes.unicode_minus'] = False  # 正确显示负号
 from scipy import signal
@@ -466,7 +466,7 @@ def extract_and_visualize(image_path, debug=True):
 # 使用示例
 if __name__ == "__main__":
     # 测试代码
-    image_path = "figs/22.tif"  # 替换为您的图像路径
+    image_path = "3.jpg"  # 替换为您的图像路径
     
     # 创建提取器实例
     extractor = AxesExtractor(debug=True)

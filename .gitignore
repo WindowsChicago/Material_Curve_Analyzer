@@ -17,3 +17,5 @@ figs/
 *.png
 *.tif
 *.zip
+image_caches/
+extractor/

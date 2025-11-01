@@ -50,5 +50,5 @@ def recognize(img_path, threshold=0.5):
 
 
 if __name__ == '__main__':
-    recognize('curve_m1/images/7.jpg',0.3)
+    recognize('3.jpg',0.3)
 

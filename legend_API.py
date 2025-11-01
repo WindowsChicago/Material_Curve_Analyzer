@@ -9,7 +9,7 @@ from legend_EasyOCR import OCRLegendTextExtractor
 class LegendDetectionPipeline:
     def __init__(self):
         # 初始化YOLO检测器
-        self.yolo_net = cv2.dnn.readNetFromONNX("best.onnx")
+        self.yolo_net = cv2.dnn.readNetFromONNX("best-SimAM.onnx")
         self.input_shape = (640, 640)
         self.model_classify = ["legend"]
         
@@ -219,7 +219,7 @@ def main():
     pipeline = LegendDetectionPipeline()
     
     # 图像路径
-    image_path = "1.jpg"  # 替换为您的图像路径
+    image_path = "4.jpg"  # 替换为您的图像路径
     
     try:
         # 执行完整的处理流程

@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-#plt.rc("font", family='Microsoft YaHei')
+plt.rc("font", family='Microsoft YaHei')
 from scipy import signal
 import easyocr
 import re
@@ -339,7 +339,7 @@ def extract_x_coord_bidirectional(image_path):
                 threshold = (sorted_lengths[max_diff_index] + sorted_lengths[max_diff_index + 1]) / 2
 
                 # 调参放宽条件：将阈值乘以一个小于1的系数，例如0.7，这样就会将一些较短的刻度也纳入长刻度
-                threshold = threshold * 0.7
+                threshold = threshold * 0.4
                 
                 long_ticks = [col for col in all_tick_candidates if tick_length_map[col] >= threshold]
             else:
@@ -1055,7 +1055,7 @@ def visualize_bidirectional_results_with_ocr(image_path, left_edge, right_edge, 
 # 使用示例
 if __name__ == "__main__":
     # 替换为您的图像路径
-    image_path = "figs/22.tif"
+    image_path = "3.jpg"
     
     try:
         # 提取坐标
