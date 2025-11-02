@@ -127,12 +127,23 @@ class CurveExtractor:
             same_x_points = points[points[:, 0] == x]
             y_values = same_x_points[:, 1]
             
-            # 如果y值差异太大，可能存在多个曲线分支，取最上面的
+            # 如果y值差异太大，可能存在多个曲线分支
             if len(y_values) > 1:
                 y_diff = np.max(y_values) - np.min(y_values)
                 if y_diff > self.height * 0.1:  # 如果y方向差异超过图像高度的10%
-                    # 只保留最上面的点（y值最小）
-                    y_values = [np.min(y_values)]
+                    # 计算每个簇到图像边缘的距离
+                    edge_distances = []
+                    for y in y_values:
+                        # 计算到上边缘和下边缘的最小距离
+                        dist_to_top = y
+                        dist_to_bottom = self.height - y
+                        min_dist_to_edge = min(dist_to_top, dist_to_bottom)
+                        edge_distances.append(min_dist_to_edge)
+                    
+                    # 找到距离边缘最近的簇
+                    min_edge_dist_idx = np.argmin(edge_distances)
+                    # 移除距离边缘最近的簇，保留其他簇
+                    y_values = np.delete(y_values, min_edge_dist_idx)
             
             # 计算平均y值
             avg_y = np.mean(y_values)
@@ -211,7 +222,7 @@ class CurveExtractor:
 def main():
     # 使用示例
     image_path = "1.jpg"  # 替换为您的图像路径
-    target_color = "#fff8bd"  # 替换为您要提取的颜色
+    target_color = "#d3d3d3"  # 替换为您要提取的颜色
     
     try:
         # 创建提取器实例

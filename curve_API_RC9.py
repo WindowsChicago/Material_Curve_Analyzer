@@ -6,7 +6,7 @@ import json
 from typing import Dict, List, Tuple, Any, Optional
 
 # 导入现有的功能模块
-from curve_Extractor_canary import CurveExtractor
+from curve_Extractor_RC9 import CurveExtractor
 from legend_API import LegendDetectionPipeline
 
 class CurveAnalysisAPI:
@@ -25,6 +25,48 @@ class CurveAnalysisAPI:
         # 存储结果
         self.results = {}
         
+    def _mask_legend_regions(self, image_path: str, legend_results: List[Dict]) -> str:
+        """
+        用白色覆盖所有图例区域，防止图例被误识别为曲线
+        
+        Args:
+            image_path: 原始图像路径
+            legend_results: 图例检测结果
+            
+        Returns:
+            处理后的图像临时文件路径
+        """
+        import tempfile
+        
+        # 读取原始图像
+        img = cv2.imread(image_path)
+        if img is None:
+            raise ValueError(f"无法读取图像: {image_path}")
+        
+        # 复制图像，避免修改原始图像
+        masked_img = img.copy()
+        
+        # 用白色填充所有图例区域
+        for legend_result in legend_results:
+            bbox = legend_result['bbox']
+            x, y, w, h = bbox
+            
+            # 确保坐标在图像范围内
+            x1 = max(0, int(x))
+            y1 = max(0, int(y))
+            x2 = min(img.shape[1], int(x + w))
+            y2 = min(img.shape[0], int(y + h))
+            
+            # 用白色填充矩形区域
+            cv2.rectangle(masked_img, (x1, y1), (x2, y2), (255, 255, 255), -1)
+        
+        # 创建临时文件保存处理后的图像
+        temp_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+        cv2.imwrite(temp_file.name, masked_img)
+        
+        print(f"已用白色覆盖 {len(legend_results)} 个图例区域")
+        return temp_file.name
+    
     def analyze_image(self, image_path: str, 
                      yolo_threshold: float = 0.3,
                      curve_points: int = 1024,
@@ -61,9 +103,13 @@ class CurveAnalysisAPI:
             print("警告: 未检测到图例区域")
             return {"error": "未检测到图例区域"}
         
-        # 步骤2: 提取曲线数据
+        # 步骤1.5: 用白色覆盖图例区域
+        print("\n步骤1.5: 用白色覆盖图例区域...")
+        masked_image_path = self._mask_legend_regions(image_path, legend_results)
+        
+        # 步骤2: 提取曲线数据（使用覆盖后的图像）
         print("\n步骤2: 提取曲线数据...")
-        curve_extractor = CurveExtractor(image_path)
+        curve_extractor = CurveExtractor(masked_image_path)
         all_curves_data = []
         
         for i, legend_result in enumerate(legend_results):
@@ -136,6 +182,14 @@ class CurveAnalysisAPI:
                 except Exception as e:
                     print(f"  提取黑色曲线时出错: {e}")
         
+        # 清理临时文件
+        try:
+            if os.path.exists(masked_image_path):
+                os.unlink(masked_image_path)
+                print(f"\n已清理临时文件: {masked_image_path}")
+        except Exception as e:
+            print(f"清理临时文件时出错: {e}")
+        
         # 构建最终结果
         final_result = {
             "image_path": image_path,
@@ -144,7 +198,8 @@ class CurveAnalysisAPI:
             "processing_info": {
                 "yolo_threshold": yolo_threshold,
                 "curve_points": curve_points,
-                "color_tolerance": color_tolerance
+                "color_tolerance": color_tolerance,
+                "legend_regions_masked": True  # 标记已进行图例区域覆盖
             }
         }
         
@@ -343,7 +398,7 @@ def analyze_image(image_path: str,
 # 使用示例和测试
 if __name__ == "__main__":
     # 示例用法
-    image_path = "fig2/005.jpg"  # 替换为您的图像路径
+    image_path = "fig2/004.jpg"  # 替换为您的图像路径
     
     try:
         # 使用API类

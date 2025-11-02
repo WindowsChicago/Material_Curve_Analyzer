@@ -4,7 +4,7 @@ import os
 import tempfile
 #from legend_YOLO import recognize
 from legend_YOLO_CUDA import recognize
-from legend_EasyOCR import OCRLegendTextExtractor
+from legend_EasyOCR_canary import OCRLegendTextExtractor
 class LegendDetectionPipeline:
     def __init__(self):
         # 初始化YOLO检测器
@@ -220,7 +220,7 @@ def main():
     pipeline = LegendDetectionPipeline()
     
     # 图像路径
-    image_path = "2.jpg"  # 替换为您的图像路径
+    image_path = "fig2/014.jpg"  # 替换为您的图像路径
     
     try:
         # 执行完整的处理流程
