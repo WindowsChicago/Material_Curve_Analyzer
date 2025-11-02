@@ -2,9 +2,12 @@ import cv2
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
+plt.rc("font", family='AR PL UKai CN') #Ubuntu
+#plt.rc("font", family='Microsoft YaHei') #Windows
 from scipy import interpolate
 from sklearn.cluster import DBSCAN
 import webcolors
+import colorsys
 
 class CurveExtractor:
     def __init__(self, image_path):
@@ -17,14 +20,24 @@ class CurveExtractor:
         self.image_rgb = cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB)
         self.height, self.width = self.image_rgb.shape[:2]
         
+        # 转换为HSV格式用于颜色匹配
+        self.image_hsv = cv2.cvtColor(self.image, cv2.COLOR_BGR2HSV)
+        
     def hex_to_rgb(self, hex_color):
         """将十六进制颜色转换为RGB"""
         hex_color = hex_color.lstrip('#')
-        print(tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4)))
         return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
     
-    def find_color_mask(self, target_color, tolerance=40):
-        """创建目标颜色的掩码"""
+    def hex_to_hsv(self, hex_color):
+        """将十六进制颜色转换为HSV"""
+        rgb = self.hex_to_rgb(hex_color)
+        r, g, b = [x/255.0 for x in rgb]
+        h, s, v = colorsys.rgb_to_hsv(r, g, b)
+        # 转换为OpenCV的HSV范围: H: 0-180, S: 0-255, V: 0-255
+        return (int(h * 180), int(s * 255), int(v * 255))
+    
+    def find_color_mask_rgb(self, target_color, tolerance=10):
+        """使用RGB颜色空间创建目标颜色的掩码"""
         target_rgb = self.hex_to_rgb(target_color)
         
         # 转换为numpy数组便于计算
@@ -37,6 +50,62 @@ class CurveExtractor:
         mask = color_diff < tolerance
         
         return mask.astype(np.uint8) * 255
+    
+    def find_color_mask_hsv(self, target_color, hue_tolerance=15, sat_tolerance=60, val_tolerance=60):
+        """使用HSV颜色空间创建目标颜色的掩码（更灵活）"""
+        target_hsv = self.hex_to_hsv(target_color)
+        
+        # 创建HSV范围
+        lower_bound = np.array([
+            max(0, target_hsv[0] - hue_tolerance),
+            max(0, target_hsv[1] - sat_tolerance),
+            max(0, target_hsv[2] - val_tolerance)
+        ])
+        
+        upper_bound = np.array([
+            min(180, target_hsv[0] + hue_tolerance),
+            min(255, target_hsv[1] + sat_tolerance),
+            min(255, target_hsv[2] + val_tolerance)
+        ])
+        
+        # 创建掩码
+        mask = cv2.inRange(self.image_hsv, lower_bound, upper_bound)
+        
+        return mask
+    
+    def find_color_mask_adaptive(self, target_color, tolerance=40, use_hsv=True):
+        """自适应颜色掩码 - 结合RGB和HSV的优点"""
+        if use_hsv:
+            # 使用HSV，但根据tolerance调整各通道容差
+            hue_tol = max(10, min(30, tolerance // 3))
+            sat_tol = max(30, min(80, tolerance * 2))
+            val_tol = max(30, min(80, tolerance * 2))
+            mask = self.find_color_mask_hsv(target_color, hue_tol, sat_tol, val_tol)
+        else:
+            # 使用RGB，但放宽容差
+            relaxed_tolerance = min(80, tolerance * 1.5)
+            mask = self.find_color_mask_rgb(target_color, relaxed_tolerance)
+        
+        # 形态学操作来连接断开的区域
+        kernel = np.ones((3, 3), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+        
+        return mask
+    
+    def find_color_mask(self, target_color, tolerance=40):
+        """创建目标颜色的掩码 - 主入口点，使用改进的策略"""
+        # 尝试自适应HSV方法
+        mask = self.find_color_mask_adaptive(target_color, tolerance, use_hsv=True)
+        
+        # 检查是否找到足够的像素
+        if np.sum(mask > 0) < 50:  # 如果像素太少
+            # 尝试放宽条件
+            relaxed_mask = self.find_color_mask_adaptive(target_color, tolerance * 2, use_hsv=True)
+            if np.sum(relaxed_mask > 0) > np.sum(mask > 0):
+                mask = relaxed_mask
+        
+        return mask
     
     def remove_axes_and_text(self, mask):
         """去除坐标轴、边框和文字"""
@@ -80,9 +149,18 @@ class CurveExtractor:
         
         # 使用DBSCAN聚类去除离散点
         if len(points) > 10:
-            clustering = DBSCAN(eps=5, min_samples=5).fit(points)
-            main_cluster_mask = clustering.labels_ == 0
-            points = points[main_cluster_mask]
+            # 自适应调整聚类参数
+            eps = max(3, min(10, 2000 / len(points)))
+            min_samples = max(3, min(10, len(points) // 100))
+            
+            clustering = DBSCAN(eps=eps, min_samples=min_samples).fit(points)
+            
+            # 找到最大的簇
+            unique_labels, counts = np.unique(clustering.labels_[clustering.labels_ >= 0], return_counts=True)
+            if len(unique_labels) > 0:
+                main_cluster = unique_labels[np.argmax(counts)]
+                main_cluster_mask = clustering.labels_ == main_cluster
+                points = points[main_cluster_mask]
         
         return points
     
@@ -203,7 +281,7 @@ def main():
         curve_points = extractor.extract_curve(
             target_color=target_color,
             num_points=128,
-            tolerance=40,
+            tolerance=10,
             visualize=True  # 设置为True可以看到处理过程
         )
         

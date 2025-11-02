@@ -6,7 +6,7 @@ import json
 from typing import Dict, List, Tuple, Any, Optional
 
 # 导入现有的功能模块
-from curve_Extractor_canary import CurveExtractor
+from curve_Extractor import CurveExtractor
 from legend_API import LegendDetectionPipeline
 
 class CurveAnalysisAPI:
@@ -224,7 +224,10 @@ class CurveAnalysisAPI:
         
         try:
             import matplotlib.pyplot as plt
+            plt.rc("font", family='AR PL UKai CN') #Ubuntu
+            #plt.rc("font", family='Microsoft YaHei') #Windows
             from matplotlib.patches import Rectangle
+
             
             # 读取图像
             img = cv2.imread(image_path)
@@ -340,18 +343,13 @@ def analyze_image(image_path: str,
 # 使用示例和测试
 if __name__ == "__main__":
     # 示例用法
-    image_path = "4.jpg"  # 替换为您的图像路径
+    image_path = "fig2/005.jpg"  # 替换为您的图像路径
     
     try:
-        # # 方法1: 使用便捷函数
-        # print("方法1: 使用便捷函数")
-        # result = analyze_image(image_path, visualize=True)
-        # print(f"分析完成，找到 {result['total_legends']} 个图例")
-        
-        # 方法2: 使用API类
-        print("\n方法2: 使用API类")
+        # 使用API类
+        print("\n使用API类")
         api = CurveAnalysisAPI()
-        result = api.analyze_image(image_path)
+        result = api.analyze_image(image_path, visualize=True)
         
         # 保存结果
         # api.save_results("analysis_result.json", "json")

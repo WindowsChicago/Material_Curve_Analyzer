@@ -12,7 +12,7 @@ from legend_API import LegendDetectionPipeline
 class CurveAnalysisAPI:
     """曲线分析API - 整合图例检测和曲线提取功能"""
     
-    def __init__(self, yolo_model_path: str = "best.onnx"):
+    def __init__(self, yolo_model_path: str = "best-SimAM.onnx"):
         """
         初始化API
         
@@ -24,43 +24,11 @@ class CurveAnalysisAPI:
         
         # 存储结果
         self.results = {}
-    
-    def filter_points_in_legend_regions(self, points: np.ndarray, legend_bboxes: List[Tuple]) -> np.ndarray:
-        """
-        过滤掉位于图例区域内的点
         
-        Args:
-            points: 曲线点数组，形状为 (n, 2)
-            legend_bboxes: 图例边界框列表，每个为 (x, y, w, h)
-            
-        Returns:
-            过滤后的点数组
-        """
-        if len(points) == 0 or len(legend_bboxes) == 0:
-            return points
-        
-        filtered_points = []
-        
-        for point in points:
-            x, y = point
-            in_legend_region = False
-            
-            # 检查点是否在任何一个图例区域内
-            for bbox in legend_bboxes:
-                bx, by, bw, bh = bbox
-                if bx <= x <= bx + bw and by <= y <= by + bh:
-                    in_legend_region = True
-                    break
-            
-            if not in_legend_region:
-                filtered_points.append(point)
-        
-        return np.array(filtered_points)
-    
     def analyze_image(self, image_path: str, 
                      yolo_threshold: float = 0.3,
-                     curve_points: int = 256,  # 默认改为256个点
-                     color_tolerance: int = 40,
+                     curve_points: int = 1024,
+                     color_tolerance: int = 23,
                      visualize: bool = False) -> Dict[str, Any]:
         """
         分析图像，提取图例和对应的曲线数据
@@ -68,7 +36,7 @@ class CurveAnalysisAPI:
         Args:
             image_path: 输入图像路径
             yolo_threshold: YOLO检测阈值
-            curve_points: 每条曲线采样点数（默认256）
+            curve_points: 每条曲线采样点数
             color_tolerance: 颜色容差
             visualize: 是否可视化处理过程
             
@@ -89,16 +57,9 @@ class CurveAnalysisAPI:
             image_path, yolo_threshold
         )
         
-        # 收集所有图例区域的边界框
-        legend_bboxes = []
-        if legend_results:
-            for result in legend_results:
-                legend_bboxes.append(result['bbox'])
-            print(f"检测到 {len(legend_bboxes)} 个图例区域用于过滤")
-        
         if not legend_results:
             print("警告: 未检测到图例区域")
-            # 即使没有检测到图例，也继续处理，只是不进行过滤
+            return {"error": "未检测到图例区域"}
         
         # 步骤2: 提取曲线数据
         print("\n步骤2: 提取曲线数据...")
@@ -125,31 +86,21 @@ class CurveAnalysisAPI:
                         )
                         
                         if len(curve_points_data) > 0:
-                            # 过滤掉图例区域内的点
-                            filtered_points = self.filter_points_in_legend_regions(
-                                curve_points_data, legend_bboxes
-                            )
+                            # 转换为列表格式
+                            points_list = curve_points_data.tolist()
                             
-                            print(f"  过滤前点数: {len(curve_points_data)}, 过滤后点数: {len(filtered_points)}")
+                            curve_data = {
+                                "legend_id": f"legend_{i+1}_{j+1}",
+                                "legend_name": legend_text,
+                                "color": color_hex,
+                                "points_count": len(points_list),
+                                "points": points_list,
+                                "bbox": legend_result['bbox'],
+                                "confidence": float(legend_result['confidence'])
+                            }
                             
-                            if len(filtered_points) > 0:
-                                # 转换为列表格式
-                                points_list = filtered_points.tolist()
-                                
-                                curve_data = {
-                                    "legend_id": f"legend_{i+1}_{j+1}",
-                                    "legend_name": legend_text,
-                                    "color": color_hex,
-                                    "points_count": len(points_list),
-                                    "points": points_list,
-                                    "bbox": legend_result['bbox'],
-                                    "confidence": float(legend_result['confidence'])
-                                }
-                                
-                                all_curves_data.append(curve_data)
-                                print(f"  成功提取 {len(points_list)} 个点")
-                            else:
-                                print(f"  警告: 过滤后未找到颜色 {color_hex} 对应的曲线点")
+                            all_curves_data.append(curve_data)
+                            print(f"  成功提取 {len(points_list)} 个点")
                         else:
                             print(f"  警告: 未找到颜色 {color_hex} 对应的曲线")
                             
@@ -167,30 +118,21 @@ class CurveAnalysisAPI:
                     )
                     
                     if len(curve_points_data) > 0:
-                        # 过滤掉图例区域内的点
-                        filtered_points = self.filter_points_in_legend_regions(
-                            curve_points_data, legend_bboxes
-                        )
+                        points_list = curve_points_data.tolist()
                         
-                        print(f"  黑色曲线过滤前点数: {len(curve_points_data)}, 过滤后点数: {len(filtered_points)}")
+                        curve_data = {
+                            "legend_id": f"legend_{i+1}_black",
+                            "legend_name": "黑色曲线",
+                            "color": "#000000",
+                            "points_count": len(points_list),
+                            "points": points_list,
+                            "bbox": legend_result['bbox'],
+                            "confidence": float(legend_result['confidence'])
+                        }
                         
-                        if len(filtered_points) > 0:
-                            points_list = filtered_points.tolist()
-                            
-                            curve_data = {
-                                "legend_id": f"legend_{i+1}_black",
-                                "legend_name": "黑色曲线",
-                                "color": "#000000",
-                                "points_count": len(points_list),
-                                "points": points_list,
-                                "bbox": legend_result['bbox'],
-                                "confidence": float(legend_result['confidence'])
-                            }
-                            
-                            all_curves_data.append(curve_data)
-                            print(f"  成功提取黑色曲线的 {len(points_list)} 个点")
-                        else:
-                            print(f"  警告: 过滤后未找到黑色曲线的点")
+                        all_curves_data.append(curve_data)
+                        print(f"  成功提取黑色曲线的 {len(points_list)} 个点")
+                        
                 except Exception as e:
                     print(f"  提取黑色曲线时出错: {e}")
         
@@ -202,8 +144,7 @@ class CurveAnalysisAPI:
             "processing_info": {
                 "yolo_threshold": yolo_threshold,
                 "curve_points": curve_points,
-                "color_tolerance": color_tolerance,
-                "legend_bboxes_count": len(legend_bboxes)
+                "color_tolerance": color_tolerance
             }
         }
         
@@ -250,7 +191,6 @@ class CurveAnalysisAPI:
             with open(output_path, 'w', encoding='utf-8') as f:
                 f.write(f"图像分析结果: {self.results['image_path']}\n")
                 f.write(f"总图例数量: {self.results['total_legends']}\n")
-                f.write(f"过滤图例区域数量: {self.results['processing_info']['legend_bboxes_count']}\n")
                 f.write("=" * 50 + "\n\n")
                 
                 for curve in self.results["curves"]:
@@ -284,7 +224,10 @@ class CurveAnalysisAPI:
         
         try:
             import matplotlib.pyplot as plt
+            plt.rc("font", family='AR PL UKai CN') #Ubuntu
+            #plt.rc("font", family='Microsoft YaHei') #Windows
             from matplotlib.patches import Rectangle
+
             
             # 读取图像
             img = cv2.imread(image_path)
@@ -371,8 +314,8 @@ def get_curve_api(yolo_model_path: str = "best.onnx") -> CurveAnalysisAPI:
 
 def analyze_image(image_path: str, 
                  yolo_threshold: float = 0.3,
-                 curve_points: int = 256,  # 默认改为256个点
-                 color_tolerance: int = 40,
+                 curve_points: int = 128,
+                 color_tolerance: int = 30,
                  visualize: bool = False) -> Dict[str, Any]:
     """
     快速分析图像（便捷函数）
@@ -380,7 +323,7 @@ def analyze_image(image_path: str,
     Args:
         image_path: 图像路径
         yolo_threshold: YOLO检测阈值
-        curve_points: 曲线点数（默认256）
+        curve_points: 曲线点数
         color_tolerance: 颜色容差
         visualize: 是否可视化
         
@@ -400,18 +343,13 @@ def analyze_image(image_path: str,
 # 使用示例和测试
 if __name__ == "__main__":
     # 示例用法
-    image_path = "1.jpg"  # 替换为您的图像路径
+    image_path = "fig2/005.jpg"  # 替换为您的图像路径
     
     try:
-        # # 方法1: 使用便捷函数
-        # print("方法1: 使用便捷函数")
-        # result = analyze_image(image_path, visualize=True)
-        # print(f"分析完成，找到 {result['total_legends']} 个图例")
-        
-        # 方法2: 使用API类
-        print("\n方法2: 使用API类")
+        # 使用API类
+        print("\n使用API类")
         api = CurveAnalysisAPI()
-        result = api.analyze_image(image_path)
+        result = api.analyze_image(image_path, visualize=True)
         
         # 保存结果
         # api.save_results("analysis_result.json", "json")

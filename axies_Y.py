@@ -1,7 +1,8 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-plt.rc("font", family='Microsoft YaHei')
+plt.rc("font", family='AR PL UKai CN') #Ubuntu
+#plt.rc("font", family='Microsoft YaHei') #Windows
 from scipy import signal
 import easyocr
 import re

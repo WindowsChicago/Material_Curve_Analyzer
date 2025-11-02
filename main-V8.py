@@ -4,7 +4,7 @@ import os
 import pandas as pd
 import re
 from axies_API import AxesExtractor
-from curve_API import CurveAnalysisAPI
+from curve_API_canary import CurveAnalysisAPI
 
 def natural_sort_key(s):
     """
@@ -162,7 +162,7 @@ def process_single_image(image_path):
         yolo_threshold=0.3,
         curve_points=128,
         color_tolerance=40,
-        visualize=False
+        visualize=True
     )
     
     if 'error' in curve_results:
@@ -425,9 +425,9 @@ def print_processing_summary(processed_results, failed_images):
 if __name__ == "__main__":
     try:
         # # 处理figs文件夹中的所有图片
-        #result = process_all_images(figs_folder="figs", output_file="extractor.xlsx")
+        result = process_all_images(figs_folder="fig2", output_file="extractor.xlsx")
         #处理根目录下的单张图片
-        result = process_all_images(figs_folder="./", output_file="extractor.xlsx")
+        #result = process_all_images(figs_folder="./", output_file="extractor.xlsx")
 
         
     except Exception as e:

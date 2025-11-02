@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
+plt.rc("font", family='AR PL UKai CN') #Ubuntu
+#plt.rc("font", family='Microsoft YaHei') #Windows
 from scipy import interpolate
 from sklearn.cluster import DBSCAN
 import webcolors
@@ -105,37 +107,8 @@ class CurveExtractor:
         
         return mask
     
-    def remove_axes_and_text(self, mask):
-        """去除坐标轴、边框和文字"""
-        # 创建处理后的掩码
-        processed_mask = mask.copy()
-        
-        # 方法1: 通过边缘检测去除边框
-        edges = cv2.Canny(mask, 50, 150)
-        
-        # 查找轮廓
-        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        # 过滤掉小轮廓（可能是噪声）和大轮廓（可能是边框）
-        filtered_contours = []
-        for contour in contours:
-            area = cv2.contourArea(contour)
-            x, y, w, h = cv2.boundingRect(contour)
-            
-            # 过滤条件：面积适中，不在图像边缘
-            if (area > 50 and area < (self.width * self.height * 0.8) and
-                x > self.width * 0.05 and x + w < self.width * 0.95 and
-                y > self.height * 0.05 and y + h < self.height * 0.95):
-                filtered_contours.append(contour)
-        
-        # 创建新的掩码
-        new_mask = np.zeros_like(mask)
-        cv2.drawContours(new_mask, filtered_contours, -1, 255, -1)
-        
-        return new_mask
-    
-    def extract_curve_points(self, mask):
-        """从掩码中提取曲线点"""
+    def extract_curve_points_simple(self, mask, num_points=128):
+        """简化的曲线点提取策略"""
         # 找到所有非零像素的位置
         points = np.column_stack(np.where(mask > 0))
         
@@ -145,67 +118,53 @@ class CurveExtractor:
         # 将坐标转换为 (x, y) 格式
         points = points[:, [1, 0]]  # 从 (y, x) 转换为 (x, y)
         
-        # 使用DBSCAN聚类去除离散点
-        if len(points) > 10:
-            # 自适应调整聚类参数
-            eps = max(3, min(10, 2000 / len(points)))
-            min_samples = max(3, min(10, len(points) // 100))
+        # 按x坐标分组，对每个x坐标的y值取平均
+        x_coords = np.unique(points[:, 0])
+        averaged_points = []
+        
+        for x in x_coords:
+            # 找到当前x坐标的所有点
+            same_x_points = points[points[:, 0] == x]
+            y_values = same_x_points[:, 1]
             
-            clustering = DBSCAN(eps=eps, min_samples=min_samples).fit(points)
+            # 如果y值差异太大，可能存在多个曲线分支，取最上面的
+            if len(y_values) > 1:
+                y_diff = np.max(y_values) - np.min(y_values)
+                if y_diff > self.height * 0.1:  # 如果y方向差异超过图像高度的10%
+                    # 只保留最上面的点（y值最小）
+                    y_values = [np.min(y_values)]
             
-            # 找到最大的簇
-            unique_labels, counts = np.unique(clustering.labels_[clustering.labels_ >= 0], return_counts=True)
-            if len(unique_labels) > 0:
-                main_cluster = unique_labels[np.argmax(counts)]
-                main_cluster_mask = clustering.labels_ == main_cluster
-                points = points[main_cluster_mask]
+            # 计算平均y值
+            avg_y = np.mean(y_values)
+            averaged_points.append([x, avg_y])
         
-        return points
-    
-    def sort_curve_points(self, points):
-        """对曲线点进行排序"""
-        if len(points) == 0:
-            return points
+        averaged_points = np.array(averaged_points)
         
-        # 计算点的中心
-        center = np.mean(points, axis=0)
-        
-        # 按角度排序（从左侧开始）
-        angles = np.arctan2(points[:, 1] - center[1], points[:, 0] - center[0])
-        sorted_indices = np.argsort(angles)
-        
-        return points[sorted_indices]
-    
-    def resample_curve(self, points, num_points=128):
-        """重新采样曲线到指定数量的点"""
-        if len(points) < 3:
+        if len(averaged_points) == 0:
             return np.array([])
         
-        # 对点进行排序
-        sorted_points = self.sort_curve_points(points)
+        # 按x坐标排序
+        averaged_points = averaged_points[averaged_points[:, 0].argsort()]
         
-        # 计算累积距离
-        distances = np.cumsum(np.sqrt(np.sum(np.diff(sorted_points, axis=0)**2, axis=1)))
-        distances = np.insert(distances, 0, 0)
+        # 找到最左和最右的x坐标
+        x_min = np.min(averaged_points[:, 0])
+        x_max = np.max(averaged_points[:, 0])
         
-        # 归一化距离到 [0, 1]
-        normalized_distances = distances / distances[-1]
+        # 计算x方向的步长
+        x_step = (x_max - x_min) / (num_points - 1)
         
-        # 创建插值函数
-        try:
-            fx = interpolate.interp1d(normalized_distances, sorted_points[:, 0], kind='linear')
-            fy = interpolate.interp1d(normalized_distances, sorted_points[:, 1], kind='linear')
+        # 均匀采样
+        sampled_points = []
+        for i in range(num_points):
+            target_x = x_min + i * x_step
             
-            # 在新距离上采样
-            new_distances = np.linspace(0, 1, num_points)
-            new_x = fx(new_distances)
-            new_y = fy(new_distances)
+            # 找到最接近目标x的实际点
+            distances = np.abs(averaged_points[:, 0] - target_x)
+            closest_idx = np.argmin(distances)
             
-            return np.column_stack((new_x, new_y))
-        except:
-            # 如果插值失败，返回原始点的均匀采样
-            indices = np.linspace(0, len(sorted_points)-1, num_points).astype(int)
-            return sorted_points[indices]
+            sampled_points.append(averaged_points[closest_idx])
+        
+        return np.array(sampled_points)
     
     def extract_curve(self, target_color, num_points=128, tolerance=40, visualize=False):
         """主函数：提取指定颜色的曲线"""
@@ -214,54 +173,37 @@ class CurveExtractor:
         # 1. 创建颜色掩码
         color_mask = self.find_color_mask(target_color, tolerance)
         
-        # 2. 去除坐标轴和文字
-        cleaned_mask = self.remove_axes_and_text(color_mask)
-        
-        # 3. 提取曲线点
-        curve_points = self.extract_curve_points(cleaned_mask)
+        # 2. 使用简化的曲线点提取方法
+        curve_points = self.extract_curve_points_simple(color_mask, num_points)
         
         if len(curve_points) == 0:
             print("未找到曲线点")
             return np.array([])
         
-        print(f"找到 {len(curve_points)} 个原始点")
+        print(f"提取到 {len(curve_points)} 个点")
         
-        # 4. 重新采样到指定数量的点
-        resampled_points = self.resample_curve(curve_points, num_points)
-        
-        if len(resampled_points) == 0:
-            print("重新采样失败")
-            return np.array([])
-        
-        print(f"重新采样到 {len(resampled_points)} 个点")
-        
-        # 5. 可视化结果（可选）
+        # 3. 可视化结果（可选）
         if visualize:
-            self.visualize_extraction(color_mask, cleaned_mask, resampled_points)
+            self.visualize_extraction_simple(color_mask, curve_points)
         
-        return resampled_points
+        return curve_points
     
-    def visualize_extraction(self, original_mask, cleaned_mask, final_points):
-        """可视化提取过程"""
-        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    def visualize_extraction_simple(self, mask, final_points):
+        """简化的可视化提取过程"""
+        fig, axes = plt.subplots(1, 2, figsize=(10, 5))
         
         # 原始图像
         axes[0].imshow(self.image_rgb)
         axes[0].set_title('原始图像')
         axes[0].axis('off')
         
-        # 颜色掩码
-        axes[1].imshow(original_mask, cmap='gray')
-        axes[1].set_title('颜色掩码')
-        axes[1].axis('off')
-        
-        # 清理后的掩码和提取的点
-        axes[2].imshow(cleaned_mask, cmap='gray')
+        # 颜色掩码和提取的点
+        axes[1].imshow(mask, cmap='gray')
         if len(final_points) > 0:
-            axes[2].scatter(final_points[:, 0], final_points[:, 1], 
+            axes[1].scatter(final_points[:, 0], final_points[:, 1], 
                            c='red', s=10, marker='o')
-        axes[2].set_title('提取的曲线点')
-        axes[2].axis('off')
+        axes[1].set_title('提取的曲线点')
+        axes[1].axis('off')
         
         plt.tight_layout()
         plt.show()
@@ -269,7 +211,7 @@ class CurveExtractor:
 def main():
     # 使用示例
     image_path = "1.jpg"  # 替换为您的图像路径
-    target_color = "#c4fff"  # 替换为您要提取的颜色
+    target_color = "#fff8bd"  # 替换为您要提取的颜色
     
     try:
         # 创建提取器实例
@@ -279,7 +221,7 @@ def main():
         curve_points = extractor.extract_curve(
             target_color=target_color,
             num_points=128,
-            tolerance=10,
+            tolerance=23,
             visualize=True  # 设置为True可以看到处理过程
         )
         

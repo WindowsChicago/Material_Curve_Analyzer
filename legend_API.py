@@ -4,7 +4,6 @@ import os
 import tempfile
 #from legend_YOLO import recognize
 from legend_YOLO_CUDA import recognize
-#from legend_TesseractOCR import OCRLegendTextExtractor
 from legend_EasyOCR import OCRLegendTextExtractor
 class LegendDetectionPipeline:
     def __init__(self):
@@ -164,6 +163,8 @@ class LegendDetectionPipeline:
     def visualize_all_results(self, image_path, results, save_path=None):
         """可视化所有结果"""
         import matplotlib.pyplot as plt
+        plt.rc("font", family='AR PL UKai CN') #Ubuntu
+        #plt.rc("font", family='Microsoft YaHei') #Windows
         
         # 读取原始图像
         img = cv2.imread(image_path)
@@ -219,7 +220,7 @@ def main():
     pipeline = LegendDetectionPipeline()
     
     # 图像路径
-    image_path = "1.jpg"  # 替换为您的图像路径
+    image_path = "2.jpg"  # 替换为您的图像路径
     
     try:
         # 执行完整的处理流程

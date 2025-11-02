@@ -233,7 +233,8 @@ class OCRLegendTextExtractor:
             save_path: 保存路径（可选）
         """
         import matplotlib.pyplot as plt
-        plt.rc("font", family='Microsoft YaHei')
+        plt.rc("font", family='AR PL UKai CN') #Ubuntu
+        #plt.rc("font", family='Microsoft YaHei') #Windows
         
         # 提取图例信息
         texts, colors = self.extract_legend(image_path)
@@ -284,7 +285,7 @@ def main():
     extractor = OCRLegendTextExtractor(languages=['ch_sim', 'en'], gpu=False)
     
     # 识别图像中的文本
-    image_path = 'temp_crops/legend_crop_0b11gpt6.jpg'  # 替换为你的图像路径
+    image_path = '5.jpg'  # 替换为你的图像路径
     
     try:
         # 方法1: 使用新的extract_legend API
