@@ -6,7 +6,7 @@ import json
 from typing import Dict, List, Tuple, Any, Optional
 
 # 导入现有的功能模块
-from curve_Extractor_RC9 import CurveExtractor
+from curve_Extractor_RC10 import CurveExtractor
 from legend_API import LegendDetectionPipeline
 
 class CurveAnalysisAPI:
@@ -70,7 +70,7 @@ class CurveAnalysisAPI:
     def analyze_image(self, image_path: str, 
                      yolo_threshold: float = 0.3,
                      curve_points: int = 1024,
-                     color_tolerance: int = 23,
+                     color_tolerance: int = 1,
                      visualize: bool = False) -> Dict[str, Any]:
         """
         分析图像，提取图例和对应的曲线数据
@@ -370,7 +370,7 @@ def get_curve_api(yolo_model_path: str = "best.onnx") -> CurveAnalysisAPI:
 def analyze_image(image_path: str, 
                  yolo_threshold: float = 0.3,
                  curve_points: int = 128,
-                 color_tolerance: int = 30,
+                 color_tolerance: int = 15,
                  visualize: bool = False) -> Dict[str, Any]:
     """
     快速分析图像（便捷函数）

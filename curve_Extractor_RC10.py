@@ -107,8 +107,8 @@ class CurveExtractor:
         
         return mask
     
-    def extract_curve_points_simple(self, mask, num_points=128):
-        """简化的曲线点提取策略"""
+    def extract_curve_points_advanced(self, mask, num_points=128):
+        """改进的曲线点提取策略 - 强化顺序，去除极端点，连接曲线段"""
         # 找到所有非零像素的位置
         points = np.column_stack(np.where(mask > 0))
         
@@ -118,7 +118,7 @@ class CurveExtractor:
         # 将坐标转换为 (x, y) 格式
         points = points[:, [1, 0]]  # 从 (y, x) 转换为 (x, y)
         
-        # 按x坐标分组，对每个x坐标的y值取平均
+        # 步骤1: 按x坐标分组，对每个x坐标的y值取平均
         x_coords = np.unique(points[:, 0])
         averaged_points = []
         
@@ -154,28 +154,114 @@ class CurveExtractor:
         if len(averaged_points) == 0:
             return np.array([])
         
-        # 按x坐标排序
+        # 步骤2: 按x坐标排序，强化从左到右的顺序
         averaged_points = averaged_points[averaged_points[:, 0].argsort()]
         
-        # 找到最左和最右的x坐标
-        x_min = np.min(averaged_points[:, 0])
-        x_max = np.max(averaged_points[:, 0])
+        # 步骤3: 去除极端点 - 基于局部变化率
+        filtered_points = self.filter_extreme_points(averaged_points)
         
-        # 计算x方向的步长
-        x_step = (x_max - x_min) / (num_points - 1)
+        # 步骤4: 连接曲线段 - 检测并填补大的间隙
+        connected_points = self.connect_curve_segments(filtered_points)
         
-        # 均匀采样
-        sampled_points = []
-        for i in range(num_points):
-            target_x = x_min + i * x_step
+        # 步骤5: 均匀采样到指定数量的点
+        sampled_points = self.resample_curve(connected_points, num_points)
+        
+        return sampled_points
+    
+    def filter_extreme_points(self, points, window_size=1, threshold_factor=2.0):
+        """去除极端点 - 基于局部变化率"""
+        if len(points) <= window_size:
+            return points
+        
+        filtered_points = []
+        n = len(points)
+        
+        for i in range(n):
+            # 计算局部窗口
+            start_idx = max(0, i - window_size // 2)
+            end_idx = min(n, i + window_size // 2 + 1)
             
-            # 找到最接近目标x的实际点
-            distances = np.abs(averaged_points[:, 0] - target_x)
-            closest_idx = np.argmin(distances)
+            # 计算局部y值的均值和标准差
+            local_y = points[start_idx:end_idx, 1]
+            local_mean = np.mean(local_y)
+            local_std = np.std(local_y)
             
-            sampled_points.append(averaged_points[closest_idx])
+            # 如果当前点与局部均值的差异小于阈值倍的标准差，则保留
+            if abs(points[i, 1] - local_mean) < threshold_factor * local_std:
+                filtered_points.append(points[i])
         
-        return np.array(sampled_points)
+        return np.array(filtered_points) if filtered_points else points
+    
+    def connect_curve_segments(self, points, max_gap_ratio=0.05):
+        """连接曲线段 - 检测并填补大的间隙"""
+        if len(points) < 2:
+            return points
+        
+        connected_points = [points[0]]
+        
+        for i in range(1, len(points)):
+            # 计算当前点与前一个点的x间隙
+            x_gap = points[i, 0] - points[i-1, 0]
+            
+            # 如果间隙过大，进行插值
+            if x_gap > self.width * max_gap_ratio:
+                # 计算需要插入的点数
+                num_insert = int(x_gap / (self.width * 0.01))  # 每1%宽度插入一个点
+                num_insert = max(1, min(10, num_insert))  # 限制插入点数
+                
+                # 线性插值
+                x_start, y_start = points[i-1]
+                x_end, y_end = points[i]
+                
+                for j in range(1, num_insert + 1):
+                    ratio = j / (num_insert + 1)
+                    x_insert = x_start + ratio * (x_end - x_start)
+                    y_insert = y_start + ratio * (y_end - y_start)
+                    connected_points.append([x_insert, y_insert])
+            
+            connected_points.append(points[i])
+        
+        return np.array(connected_points)
+    
+    def resample_curve(self, points, num_points):
+        """将曲线重新采样到指定数量的点"""
+        if len(points) < 2:
+            return points
+        
+        # 按x坐标排序
+        points = points[points[:, 0].argsort()]
+        
+        # 使用样条插值
+        try:
+            # 确保x坐标是严格递增的
+            unique_x, unique_indices = np.unique(points[:, 0], return_index=True)
+            if len(unique_x) < 2:
+                return points
+            
+            unique_points = points[unique_indices]
+            
+            # 创建插值函数
+            tck = interpolate.splrep(unique_points[:, 0], unique_points[:, 1], s=0)
+            
+            # 生成新的x坐标
+            x_min = np.min(unique_points[:, 0])
+            x_max = np.max(unique_points[:, 0])
+            x_new = np.linspace(x_min, x_max, num_points)
+            
+            # 插值得到新的y坐标
+            y_new = interpolate.splev(x_new, tck, der=0)
+            
+            return np.column_stack((x_new, y_new))
+        except:
+            # 如果样条插值失败，使用线性插值
+            x_min = np.min(points[:, 0])
+            x_max = np.max(points[:, 0])
+            x_new = np.linspace(x_min, x_max, num_points)
+            
+            # 线性插值
+            y_new = np.interp(x_new, points[:, 0], points[:, 1])
+            
+            return np.column_stack((x_new, y_new))
     
     def extract_curve(self, target_color, num_points=128, tolerance=40, visualize=False):
         """主函数：提取指定颜色的曲线"""
@@ -184,8 +270,8 @@ class CurveExtractor:
         # 1. 创建颜色掩码
         color_mask = self.find_color_mask(target_color, tolerance)
         
-        # 2. 使用简化的曲线点提取方法
-        curve_points = self.extract_curve_points_simple(color_mask, num_points)
+        # 2. 使用改进的曲线点提取方法
+        curve_points = self.extract_curve_points_advanced(color_mask, num_points)
         
         if len(curve_points) == 0:
             print("未找到曲线点")
@@ -195,17 +281,22 @@ class CurveExtractor:
         
         # 3. 可视化结果（可选）
         if visualize:
-            self.visualize_extraction_simple(color_mask, curve_points)
+            self.visualize_extraction_advanced(color_mask, curve_points)
         
         return curve_points
     
-    def visualize_extraction_simple(self, mask, final_points):
-        """简化的可视化提取过程"""
+    def visualize_extraction_advanced(self, mask, final_points):
+        """改进的可视化提取过程"""
         fig, axes = plt.subplots(1, 2, figsize=(10, 5))
         
         # 原始图像
         axes[0].imshow(self.image_rgb)
-        axes[0].set_title('原始图像')
+        if len(final_points) > 0:
+            axes[0].scatter(final_points[:, 0], final_points[:, 1], 
+                           c='red', s=10, marker='o')
+            axes[0].plot(final_points[:, 0], final_points[:, 1], 
+                        c='red', linewidth=1, alpha=0.7)
+        axes[0].set_title('原始图像与提取的曲线')
         axes[0].axis('off')
         
         # 颜色掩码和提取的点
@@ -213,6 +304,8 @@ class CurveExtractor:
         if len(final_points) > 0:
             axes[1].scatter(final_points[:, 0], final_points[:, 1], 
                            c='red', s=10, marker='o')
+            axes[1].plot(final_points[:, 0], final_points[:, 1], 
+                        c='red', linewidth=1, alpha=0.7)
         axes[1].set_title('提取的曲线点')
         axes[1].axis('off')
         
@@ -232,7 +325,7 @@ def main():
         curve_points = extractor.extract_curve(
             target_color=target_color,
             num_points=128,
-            tolerance=20,
+            tolerance=23,
             visualize=True  # 设置为True可以看到处理过程
         )
         

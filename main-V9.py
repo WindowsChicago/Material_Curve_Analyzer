@@ -161,8 +161,8 @@ def process_single_image(image_path):
         image_path=image_path,
         yolo_threshold=0.3,
         curve_points=128,
-        color_tolerance=27,
-        visualize=True
+        color_tolerance=15,
+        visualize=False
     )
     
     if 'error' in curve_results:
