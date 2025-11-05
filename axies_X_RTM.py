@@ -13,6 +13,85 @@ import os
 # 初始化EasyOCR阅读器（支持英文和中文）
 reader = easyocr.Reader(['ch_sim', 'en'],gpu=True)
 
+def postprocess_x_label(text):
+    """
+    对X轴标签进行后处理，修正常见的OCR识别错误
+    """
+    if not text:
+        return text
+    
+    # 保存原始文本用于调试
+    original_text = text
+    
+    # 常见错误修正映射
+    corrections = {
+        # r'ngineering': 'Engineering',
+        r'Igineering': 'Engineering',
+        # r'gineering': 'Engineering',
+        r'trUe': 'True',
+        # r'Ture': 'True',
+        r'Slrain': 'Strain',
+        # r'Strain rate\(s"\)': 'Strain rate(s-1)',
+        # r'Strain\(%\)': 'Strain (%)',
+        # r'Strain,%': 'Strain, %',
+        # r'Strain %': 'Strain, %',
+        r'Strain/mm': 'Strain (mm/mm)',
+        # r'Strain\(mm/mm\)': 'Strain (mm/mm)',
+        # r'Strain \(mm/mm\)': 'Strain (mm/mm)',
+        # r'Nominalstrain': 'Nominal strain',
+        # r'Engineering Strain,%': 'Engineering strain, %',
+        # r'Engineering Strain %': 'Engineering strain, %',
+        # r'Engineering Strain\(%\)': 'Engineering strain (%)',
+        # r'True strain\(%\)': 'True strain (%)',
+        # r'True Strain\(%\)': 'True strain (%)',
+        # r'Compressive Strain \(%\)': 'Compressive Strain (%)',
+        r'Engineering Strain,\s*e': 'Engineering Strain, ε',
+        # r'engineering strain,\s*%': 'engineering strain, %',
+        # r'Strain, %': 'Strain (%)',
+        # r'Strain/mm\s*%': 'Strain (mm/mm %)',
+        # r'Strain\(mm/mm\s*%\)': 'Strain (mm/mm %)',
+        # r'Strain \(mm/mm,\s*%\)': 'Strain (mm/mm, %)',
+        # r'Strain \(mm/mm\)': 'Strain (mm/mm)',
+        # r'energy \(eV\)': 'Energy (eV)',
+        # r'Strain/%': 'Strain (%)',
+        # r'Engineering Strain\[\%\]': 'Engineering Strain [%]',
+        r'engineering strain e': 'engineering strain, ε',
+        # r'engineering strain,%': 'engineering strain, %',
+        r'Engineering Strain e': 'Engineering Strain, ε',
+        r'Strain rate\(s"\)': 'Strain rate(s-1)',
+        r'Trle strain': 'True strain',
+        r'Tre strain': 'True strain',
+        r'Trestrain': 'True strain',
+        # r'Truestrain': 'True strain'
+    }
+    
+    # 应用修正
+    for wrong, correct in corrections.items():
+        text = re.sub(wrong, correct, text, flags=re.IGNORECASE)
+    
+    # 特殊处理：确保Engineering和Strain的首字母大写
+    if 'engineering' in text.lower():
+        # 找到engineering并确保首字母大写
+        text = re.sub(r'engineering', 'Engineering', text, flags=re.IGNORECASE)
+    
+    if 'strain' in text.lower() and not re.search(r'True strain|true strain', text, re.IGNORECASE):
+        # 对于非True strain的情况，确保Strain首字母大写
+        text = re.sub(r'strain', 'Strain', text, flags=re.IGNORECASE)
+    
+    # 统一括号格式
+    text = re.sub(r'\(\)', '()', text)  # 空括号保持不变
+    text = re.sub(r'\(\s+', '(', text)  # 去除左括号后的空格
+    text = re.sub(r'\s+\)', ')', text)  # 去除右括号前的空格
+    
+    # 统一逗号格式
+    text = re.sub(r',\s*', ', ', text)  # 确保逗号后有一个空格
+    
+    # 调试信息
+    if original_text != text:
+        print(f"X-label修正: '{original_text}' -> '{text}'")
+    
+    return text
+
 def read_image_pil(image_path):
     """
     使用PIL读取图像，解决OpenCV无法处理LZW压缩的问题
@@ -118,6 +197,9 @@ def filter_merge_texts(texts, confidence_threshold=0.5, y_threshold=10):
         
         # 拼接文本内容
         merged_content = ' '.join([text['content'] for text in group])
+        
+        # 对合并后的文本进行后处理
+        merged_content = postprocess_x_label(merged_content)
         
         # 计算平均位置
         avg_x = np.mean([text['position'][0] for text in group])
@@ -468,6 +550,9 @@ def extract_text_num_x_axis_region(image_path):
                 })
             else:
                 # 如果不是数字，作为文本处理
+                # 对文本进行后处理
+                cleaned_text = postprocess_x_label(cleaned_text)
+                
                 x_coords = [point[0] for point in bbox]
                 y_coords = [point[1] for point in bbox]
                 center_x = sum(x_coords) / len(x_coords)
@@ -488,6 +573,9 @@ def extract_text_num_x_axis_region(image_path):
                 })
         except (ValueError, TypeError):
             # 转换失败，作为文本处理
+            # 对文本进行后处理
+            cleaned_text = postprocess_x_label(cleaned_text)
+            
             x_coords = [point[0] for point in bbox]
             y_coords = [point[1] for point in bbox]
             center_x = sum(x_coords) / len(x_coords)

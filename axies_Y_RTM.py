@@ -12,6 +12,104 @@ import os
 # 初始化EasyOCR阅读器（支持英文和中文）
 reader = easyocr.Reader(['ch_sim', 'en'],gpu=True)
 
+def correct_y_label_content(content):
+    """
+    修正Y轴标签内容的常见识别错误
+    """
+    if not content or content == "未识别":
+        return content
+    
+    # 保存原始内容用于调试
+    original = content
+    
+    # 常见错误修正映射
+    corrections = {
+        # 拼写错误修正
+        r'^ngineering$': 'Engineering stress',
+        r'^ngineering\s+$': 'Engineering stress',
+        r'^Igineering$': 'Engineering stress',
+        r'^Cngineering$': 'Engineering stress', 
+        r'^gineering$': 'Engineering stress',
+        r'^ngineering\s+strength$': 'Engineering strength',
+        r'^ngineering\s+stress$': 'Engineering stress',
+        
+        # 单位补全和格式统一
+        r'^Stres$': 'Engineering stress',
+        r'^Stress$': 'Engineering stress',
+        r'^Engineering\s+Stress$': 'Engineering Stress (MPa)',
+        r'^Engineering\s+stress$': 'Engineering stress (MPa)',
+        # r'^True\s+stress$': 'True stress (MPa)',
+        # r'^True\s+Stress$': 'True Stress (MPa)',
+        r'^Engineering\s+Stressl$': 'Engineering Stress (MPa)',
+        r'^Engineering\s+stressl$': 'Engineering stress (MPa)',
+        
+        # 特殊字符修正
+        r'^\(\)$': 'Stress (MPa)',
+        r'^data\)$': 'True stress (MPa)',
+        r'^ith\s+the\s+Stroke\s+data\)$': 'True stress (MPa)',
+        r'^jith\s+the\s+Stroke\s+data\)$': 'True stress (MPa)',
+        r'^SST\s+data\)$': 'True stress (MPa)',
+        r'^UTZ\s+data\)$': 'True stress (MPa)',
+        
+        # 工作硬化率相关
+        r'^hardening\s+rate$': 'Work hardening rate (MPa)',
+        r'^Nork\s+hardening\s+rate$': 'Work hardening rate (MPa)',
+        r'^Work\s+hardening\s+rate$': 'Work hardening rate (MPa)',
+        
+        # 压缩应力
+        r'^Compressive\s+Stress$': 'Compressive Stress (MPa)',
+        
+        # 名义应力
+        r'^Nominal$': 'Nominal Stress (MPa)',
+        r'^Nominal\s+stresso\s+/Mpa$': 'Nominal Stress (MPa)',
+        
+        # 流变应力
+        r'^Flow\s+stresslMPE$': 'Flow stress (MPa)',
+        r'^Flow\s+stress/MPa$': 'Flow stress (MPa)',
+        r'^Flow\s+stress/Mpa$': 'Flow stress (MPa)',
+        
+        # 熵相关（特殊案例）
+        r'^delta\s+entropy\(eV\)$': 'Delta entropy (eV)',
+    }
+    
+    # 应用修正规则
+    corrected_content = content
+    for pattern, replacement in corrections.items():
+        if re.search(pattern, corrected_content, re.IGNORECASE):
+            corrected_content = replacement
+            break
+    
+    # 如果内容以某些工程应力相关关键词开头但格式不完整，进行补全
+    if any(keyword in corrected_content.lower() for keyword in ['engineering', 'stress', 'strain']):
+        if 'mpa' not in corrected_content.lower() and 'pa' not in corrected_content.lower():
+            if 'engineering' in corrected_content.lower() and 'stress' in corrected_content.lower():
+                corrected_content = 'Engineering Stress (MPa)'
+            elif 'true' in corrected_content.lower() and 'stress' in corrected_content.lower():
+                corrected_content = 'True Stress (MPa)'
+            elif 'nominal' in corrected_content.lower() and 'stress' in corrected_content.lower():
+                corrected_content = 'Nominal Stress (MPa)'
+    
+    # 特殊处理：如果修正后与原始相同但包含常见错误模式，进行基础修正
+    if corrected_content == original:
+        # 基础拼写修正
+        if corrected_content.startswith('ngineering'):
+            corrected_content = 'Engineering' + corrected_content[10:]
+        elif corrected_content.startswith('gineering'):
+            corrected_content = 'Engineering' + corrected_content[9:]
+        elif corrected_content.startswith('Igineering'):
+            corrected_content = 'Engineering' + corrected_content[10:]
+        elif corrected_content.startswith('Cngineering'):
+            corrected_content = 'Engineering' + corrected_content[11:]
+    
+    # 最终清理：移除多余空格，统一格式
+    corrected_content = re.sub(r'\s+', ' ', corrected_content.strip())
+    
+    # 如果修正后内容有意义且与原始不同，记录变化
+    if corrected_content != original and len(corrected_content) > 3:
+        print(f"Y-label corrected: '{original}' -> '{corrected_content}'")
+    
+    return corrected_content
+
 def read_image_pil(image_path):
     """
     使用PIL读取图像，解决OpenCV无法处理LZW压缩的问题
@@ -118,6 +216,9 @@ def filter_and_merge_texts(texts, confidence_threshold=0.5, x_threshold=10):
         # 拼接文本内容
         merged_content = ' '.join([text['content'] for text in group])
         
+        # 应用内容修正
+        merged_content = correct_y_label_content(merged_content)
+        
         # 计算平均位置
         avg_x = np.mean([text['position'][0] for text in group])
         avg_y = np.mean([text['position'][1] for text in group])
@@ -216,6 +317,9 @@ def extract_rotated_y_axis_title(image_path, y_axis_position, numbers, texts):
             # 检查第二个字符是否为数字
             if cleaned_text[1].isdigit():
                 cleaned_text = '-' + cleaned_text[1:]
+        
+        # 应用内容修正
+        cleaned_text = correct_y_label_content(cleaned_text)
         
         # 排除数字和短文本（标题通常是较长的文本）
         if (not re.match(number_pattern, cleaned_text) and 
@@ -620,6 +724,8 @@ def extract_text_and_numbers_from_y_axis_region(image_path, y_axis_position):
             if cleaned_text[1].isdigit():
                 cleaned_text = '-' + cleaned_text[1:]
         
+        # 应用内容修正（仅对文本内容，不针对数字）
+        cleaned_text_for_check = cleaned_text
         # 尝试将文本转换为数字
         try:
             # 检查是否是纯数字格式
@@ -647,7 +753,9 @@ def extract_text_and_numbers_from_y_axis_region(image_path, y_axis_position):
                     'confidence': confidence
                 })
             else:
-                # 如果不是数字，作为文本处理
+                # 如果不是数字，作为文本处理，并应用修正
+                corrected_text = correct_y_label_content(cleaned_text)
+                
                 x_coords = [point[0] for point in bbox]
                 y_coords = [point[1] for point in bbox]
                 center_x = sum(x_coords) / len(x_coords)
@@ -661,13 +769,15 @@ def extract_text_and_numbers_from_y_axis_region(image_path, y_axis_position):
                 bbox_full = [(point[0] + roi_offset_x, point[1]) for point in bbox]
                 
                 texts.append({
-                    'content': cleaned_text,
+                    'content': corrected_text,
                     'position': (center_x_full, center_y_full),
                     'bbox': bbox_full,  # 完整边界框（相对于全图）
                     'confidence': confidence
                 })
         except (ValueError, TypeError):
-            # 转换失败，作为文本处理
+            # 转换失败，作为文本处理，并应用修正
+            corrected_text = correct_y_label_content(cleaned_text)
+            
             x_coords = [point[0] for point in bbox]
             y_coords = [point[1] for point in bbox]
             center_x = sum(x_coords) / len(x_coords)
@@ -681,7 +791,7 @@ def extract_text_and_numbers_from_y_axis_region(image_path, y_axis_position):
             bbox_full = [(point[0] + roi_offset_x, point[1]) for point in bbox]
             
             texts.append({
-                'content': cleaned_text,
+                'content': corrected_text,
                 'position': (center_x_full, center_y_full),
                 'bbox': bbox_full,  # 完整边界框（相对于全图）
                 'confidence': confidence

@@ -14,7 +14,7 @@ import os
 reader = easyocr.Reader(['ch_sim', 'en'])
 
 # 导入X轴和Y轴处理函数
-from axies_X import (
+from axies_X_RTM import (
     read_image_pil,
     extract_x_coord_bidirectional,
     extract_text_num_x_axis_region,
@@ -24,7 +24,7 @@ from axies_X import (
     visualize_bidirectional_results_with_ocr as visualize_x_results
 )
 
-from axies_Y import (
+from axies_Y_RTM import (
     extract_y_axis_coordinates_bidirectional_auto,
     extract_text_and_numbers_from_y_axis_region,
     filter_and_merge_texts as filter_and_merge_texts_y,

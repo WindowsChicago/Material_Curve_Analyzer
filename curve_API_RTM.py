@@ -6,7 +6,7 @@ import json
 from typing import Dict, List, Tuple, Any, Optional
 
 # 导入现有的功能模块
-from curve_Extractor_RC10 import CurveExtractor
+from curve_Extractor_RTM import CurveExtractor
 from legend_API_RTM import LegendDetectionPipeline
 
 class CurveAnalysisAPI:
@@ -51,20 +51,33 @@ class CurveAnalysisAPI:
             bbox = legend_result['bbox']
             x, y, w, h = bbox
             
+            # 计算扩展范围：上下左右各扩展20%
+            expand_h = h * 0.4  # 垂直方向扩展20%
+            expand_w = w * 0.3  # 水平方向扩展20%
+            
+            # 计算扩展后的坐标
+            new_x = max(0, x - expand_w)
+            new_y = max(0, y - expand_h)
+            new_w = min(img.shape[1] - new_x, w + 2 * expand_w)
+            new_h = min(img.shape[0] - new_y, h + 2 * expand_h)
+            
             # 确保坐标在图像范围内
-            x1 = max(0, int(x))
-            y1 = max(0, int(y))
-            x2 = min(img.shape[1], int(x + w))
-            y2 = min(img.shape[0], int(y + h))
+            x1 = max(0, int(new_x))
+            y1 = max(0, int(new_y))
+            x2 = min(img.shape[1], int(new_x + new_w))
+            y2 = min(img.shape[0], int(new_y + new_h))
             
             # 用白色填充矩形区域
             cv2.rectangle(masked_img, (x1, y1), (x2, y2), (255, 255, 255), -1)
+            
+            print(f"原始边界框: ({x}, {y}, {w}, {h})")
+            print(f"扩展后边界框: ({x1}, {y1}, {x2-x1}, {y2-y1})")
         
         # 创建临时文件保存处理后的图像
         temp_file = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
         cv2.imwrite(temp_file.name, masked_img)
         
-        print(f"已用白色覆盖 {len(legend_results)} 个图例区域")
+        print(f"已用白色覆盖 {len(legend_results)} 个图例区域（上下左右各扩展20%）")
         return temp_file.name
     
     def analyze_image(self, image_path: str, 
@@ -103,8 +116,8 @@ class CurveAnalysisAPI:
             print("警告: 未检测到图例区域")
             return {"error": "未检测到图例区域"}
         
-        # 步骤1.5: 用白色覆盖图例区域
-        print("\n步骤1.5: 用白色覆盖图例区域...")
+        # 步骤1.5: 用白色覆盖图例区域（已扩展20%）
+        print("\n步骤1.5: 用白色覆盖图例区域（上下左右各扩展20%）...")
         masked_image_path = self._mask_legend_regions(image_path, legend_results)
         
         # 步骤2: 提取曲线数据（使用覆盖后的图像）
@@ -199,7 +212,8 @@ class CurveAnalysisAPI:
                 "yolo_threshold": yolo_threshold,
                 "curve_points": curve_points,
                 "color_tolerance": color_tolerance,
-                "legend_regions_masked": True  # 标记已进行图例区域覆盖
+                "legend_regions_masked": True,
+                "mask_expansion": "20% vertical and horizontal expansion"  # 记录扩展信息
             }
         }
         
