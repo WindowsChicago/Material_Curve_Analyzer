@@ -425,7 +425,7 @@ def print_processing_summary(processed_results, failed_images):
 if __name__ == "__main__":
     try:
         # # 处理figs文件夹中的所有图片
-        result = process_all_images(figs_folder="fig2", output_file="extractor.xlsx")
+        result = process_all_images(figs_folder="figs", output_file="extractor.xlsx")
         #处理根目录下的单张图片
         #result = process_all_images(figs_folder="./", output_file="extractor.xlsx")
 

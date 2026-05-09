@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-onnx_model_path = "best.onnx"
+onnx_model_path = "best-CBAMV2.onnx"
 input_shape = (640, 640)
 net = cv2.dnn.readNetFromONNX(onnx_model_path)
 model_classify = ["legend"]

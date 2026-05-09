@@ -3,7 +3,7 @@ import numpy as np
 import os
 import tempfile
 #from legend_YOLO import recognize
-from legend_YOLO_SAMPLE_CUDA import recognize
+from legend_YOLO_CUDA import recognize
 from legend_EasyOCR_RTM import OCRLegendTextExtractor
 from legend_YOLO_BOX_CUDA import clean_image_background_only
 
